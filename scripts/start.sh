@@ -49,10 +49,15 @@ download_paper() {
     info "Paper MC をダウンロード中..."
 
     local version build jar_name
-    version=$(curl -fsSL https://api.papermc.io/v2/projects/paper \
-        | jq -r '.versions[-1]')
-    # channel は "STABLE" / "EXPERIMENTAL" など大文字で返るため、
-    # フィルタせず最後のビルドを取得（= 最新の安定ビルド）
+    # PAPER_VERSION 環境変数で固定可能。未設定なら自動で最新を取得。
+    if [ -n "${PAPER_VERSION:-}" ]; then
+        version="${PAPER_VERSION}"
+        info "  バージョン固定: ${version}"
+    else
+        version=$(curl -fsSL https://api.papermc.io/v2/projects/paper \
+            | jq -r '.versions[-1]')
+    fi
+    # channel は "STABLE" 等の大文字で返るためフィルタせず末尾（最新ビルド）を取得
     build=$(curl -fsSL "https://api.papermc.io/v2/projects/paper/versions/${version}/builds" \
         | jq -r '.builds[-1].build')
     jar_name="paper-${version}-${build}.jar"
