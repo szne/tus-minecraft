@@ -14,8 +14,9 @@ Paper 1.21.x / Docker 構成のサーバー運用手順書です。
 6. [権限管理（LuckPerms）](#6-権限管理luckperms)
 7. [Discord連携（DiscordSRV）](#7-discord連携discordsrv)
 8. [Bedrock接続（GeyserMC）](#8-bedrock接続geysermc)
-9. [ホワイトリスト管理](#9-ホワイトリスト管理)
-10. [バックアップ](#10-バックアップ)
+9. [ローマ字→日本語変換（JapanizeChat）](#9-ローマ字日本語変換japanizechat)
+10. [ホワイトリスト管理](#10-ホワイトリスト管理)
+11. [バックアップ](#11-バックアップ)
 
 ---
 
@@ -76,7 +77,6 @@ op ユーザー名
 curl -s https://api.mojang.com/users/profiles/minecraft/ユーザー名 | python3 -m json.tool
 
 # 2. UUID を 8-4-4-4-12 形式に変換して data/ops.json に追記
-# 例: "7566d890" → "7566d890-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
 ```
 
 `data/ops.json` の形式:
@@ -104,11 +104,11 @@ curl -s https://api.mojang.com/users/profiles/minecraft/ユーザー名 | python
 
 ```
 /mv list                # ワールド一覧
-/mvtp w:ワールド名       # ワールドへ移動（v5.x 新形式）
+/mvtp w:ワールド名       # ワールドへ移動
 /mv who                 # 各ワールドにいるプレイヤー一覧
 ```
 
-### 企画書のワールド構成を作る
+### ワールド構成を作る
 
 ```
 # 共通ロビー
@@ -244,13 +244,14 @@ docker compose start minecraft
 
 - [ ] Bot をDiscordサーバーに招待済み
 - [ ] [Developer Portal](https://discord.com/developers/applications) → Bot → **SERVER MEMBERS INTENT** と **MESSAGE CONTENT INTENT** を ON
-- [ ] `data/plugins/DiscordSRV/config.yml` にチャンネルIDを設定済み
+- [ ] `.env` に `DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` を設定済み
 
-### チャンネルIDの設定
+### Bot Token・チャンネルIDの設定
 
-`.env` に追記するだけで自動注入されます（再起動後に反映）:
+`.env` に設定するだけで起動時に自動注入されます:
 
 ```env
+DISCORD_BOT_TOKEN=your_bot_token_here
 DISCORD_CHANNEL_ID=123456789012345678
 ```
 
@@ -260,6 +261,18 @@ DISCORD_CHANNEL_ID=123456789012345678
 ```bash
 docker compose restart minecraft
 ```
+
+### ゲーム内チャットの Discord 表示について
+
+DiscordSRV は以下の形式でメッセージを転送します:
+
+| ゲーム内入力 | Discord に届く内容 |
+|:--|:--|
+| ローマ字（例: `konnichiha`） | `konnichiha (こんにちは)` |
+| 日本語直打ち（例: `こんにちは`） | `こんにちは` |
+| 英語（例: `Hello!`） | `Hello!` |
+
+ローマ字入力は JapanizeChat + JapanizeDiscordBridge により自動変換されます（→ [9章](#9-ローマ字日本語変換japanizechat)）。
 
 ### Discord ロールでゲーム内権限を自動連携
 
@@ -287,24 +300,66 @@ GroupSynchronizationPrimaryGroup:
 
 | 項目 | 値 |
 |:--|:--|
-| サーバーアドレス | `192.168.0.100`（LAN内）またはplayit.ggのURL（外部） |
+| サーバーアドレス | playit.gg のURL（外部）または LAN IP（LAN内） |
 | ポート | `19132` |
 
 ### 手順（iOS/Android）
 
 1. Minecraft 起動 → **「遊ぶ」**
 2. **「サーバー」タブ** → **「サーバーを追加」**
-3. アドレスに `192.168.0.100`、ポートに `19132` を入力 → 接続
+3. アドレスと `19132` を入力 → 接続
 
 ### Bedrockプレイヤーへの注意点
 
-- Microsoftアカウントで接続（Javaアカウント不要）
+- Microsoft アカウントで接続（Java アカウント不要）
 - ゲーム内名は `.` から始まる（例: `.szkk`）
 - ホワイトリストに追加する場合はこのドット付きの名前を使う
 
 ---
 
-## 9. ホワイトリスト管理
+## 9. ローマ字→日本語変換（JapanizeChat）
+
+ローマ字で入力すると、Google IME API によってリアルタイムで日本語に変換して表示されます。
+
+### ゲーム内の表示
+
+```
+# 入力:
+konnichiha
+
+# ゲーム内表示（本人・周囲のプレイヤー）:
+konnichiha (こんにちは)
+
+# Discord に届く内容:
+konnichiha (こんにちは)
+```
+
+### プレイヤーごとのオン/オフ切り替え
+
+変換表示はデフォルトでオン。プレイヤーが自分のセッション中だけオフにすることもできます:
+
+```
+/jp toggle    # オン/オフ切り替え
+```
+
+### 変換色の変更（管理者）
+
+`data/plugins/JapanizeChat/config.yml` を編集:
+
+```yaml
+# gray / white / gold / aqua / yellow / green / light_purple / red
+# hex形式（#FFFFFFなど）も可
+converted-text-color: "gray"
+
+# サーバー参加時のデフォルト状態
+default-toggle-state: true
+```
+
+編集後は `/plugman reload JapanizeChat` または `docker compose restart minecraft` で反映。
+
+---
+
+## 10. ホワイトリスト管理
 
 ### オン/オフ
 
@@ -332,7 +387,7 @@ enforce-whitelist=true
 
 ---
 
-## 10. バックアップ
+## 11. バックアップ
 
 ### 手動バックアップ
 
@@ -369,6 +424,7 @@ docker compose up -d
 | 荒らしロールバック | `/co rollback user:名前 time:1h radius:50` |
 | 権限確認 | `/lp user 名前 permission info` |
 | グループ変更 | `/lp user 名前 parent set グループ名` |
+| 日本語変換オン/オフ | `/jp toggle` |
 | Discord再読込 | `/discord reload` |
 | TPS確認 | `/tps` |
 | プレイヤー一覧 | `/list` |
