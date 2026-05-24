@@ -198,16 +198,27 @@ first_run_setup() {
     success "初回セットアップ完了"
 }
 
-# ── DiscordSRV Bot Token の自動注入 ──────────────────────────
+# ── DiscordSRV 設定の自動注入 ────────────────────────────────
 # サーバー初回起動後に DiscordSRV/config.yml が生成されたタイミングで反映
-inject_discord_token() {
+# 対象: DISCORD_BOT_TOKEN / DISCORD_CHANNEL_ID
+inject_discord_config() {
     local config="${PLUGINS_DIR}/DiscordSRV/config.yml"
-    if [ -n "${DISCORD_BOT_TOKEN:-}" ] && [ -f "${config}" ]; then
-        sed -i "s/^BotToken: .*/BotToken: \"${DISCORD_BOT_TOKEN}\"/" "${config}"
-        info "  DiscordSRV: BotToken を環境変数から注入しました"
-    elif [ -n "${DISCORD_BOT_TOKEN:-}" ]; then
-        warn "  DiscordSRV: config.yml 未生成のためトークン注入をスキップ"
+
+    if [ ! -f "${config}" ]; then
+        warn "  DiscordSRV: config.yml 未生成のため注入をスキップ"
         warn "  → サーバー初回起動→停止後に再起動すると自動注入されます"
+        return
+    fi
+
+    if [ -n "${DISCORD_BOT_TOKEN:-}" ]; then
+        sed -i "s/^BotToken: .*/BotToken: \"${DISCORD_BOT_TOKEN}\"/" "${config}"
+        info "  DiscordSRV: BotToken を注入しました"
+    fi
+
+    if [ -n "${DISCORD_CHANNEL_ID:-}" ]; then
+        # Channels.global の値を置換（DiscordSRV のデフォルト形式に対応）
+        sed -i "s/^  global: .*/  global: \"${DISCORD_CHANNEL_ID}\"/" "${config}"
+        info "  DiscordSRV: チャンネルID (global) を注入しました"
     fi
 }
 
@@ -238,8 +249,8 @@ fi
 # プラグインダウンロード（未インストール分のみ）
 download_plugins
 
-# DiscordSRV トークン注入
-inject_discord_token
+# DiscordSRV 設定注入（BotToken・チャンネルID）
+inject_discord_config
 
 # ── JVM フラグ（Aikar's Flags for Java 21 + G1GC）────────────
 # 参考: https://docs.papermc.io/paper/aikars-flags

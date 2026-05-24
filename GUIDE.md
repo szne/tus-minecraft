@@ -245,17 +245,17 @@ docker compose start minecraft
 
 ### チャンネルIDの設定
 
-```yaml
-# data/plugins/DiscordSRV/config.yml
-Channels:
-  global: "DiscordチャンネルのID（数字）"
+`.env` に追記するだけで自動注入されます（再起動後に反映）:
+
+```env
+DISCORD_CHANNEL_ID=123456789012345678
 ```
 
 > **チャンネルIDの確認方法**: Discord 設定 → 詳細設定 → 開発者モード ON → チャンネルを右クリック → 「IDをコピー」
 
 設定後:
-```
-/discord reload
+```bash
+docker compose restart minecraft
 ```
 
 ### Discord ロールでゲーム内権限を自動連携

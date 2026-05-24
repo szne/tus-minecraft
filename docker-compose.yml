@@ -34,6 +34,8 @@ services:
       MEMORY: ${MEMORY:-4G}
       # DiscordSRV Bot Token（.env に設定）
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      # DiscordSRV チャット同期チャンネルID（.env に設定）
+      DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
       # ログのバナー表示名を変更したい場合は .env に追加（省略可）
       # SERVER_DISPLAY_NAME: "TUSマイクラサークル"
 
