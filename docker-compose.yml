@@ -36,6 +36,9 @@ services:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
       # DiscordSRV チャット同期チャンネルID（.env に設定）
       DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+      # デフォルトワールド名（省略時は world）
+      # mv regen などで world をアンロードしたい場合に別ワールド名を指定
+      DEFAULT_WORLD: ${DEFAULT_WORLD:-world}
       # ログのバナー表示名を変更したい場合は .env に追加（省略可）
       # SERVER_DISPLAY_NAME: "TUSマイクラサークル"
 

@@ -225,6 +225,30 @@ first_run_setup() {
     success "初回セットアップ完了"
 }
 
+# ── デフォルトワールド設定の注入 ─────────────────────────────
+# DEFAULT_WORLD 環境変数で server.properties と bukkit.yml を同時に更新
+# 用途例: world を mv regen したいとき → DEFAULT_WORLD=lobby に設定して再起動
+inject_world_config() {
+    local world="${DEFAULT_WORLD:-world}"
+
+    # server.properties: level-name
+    if [ -f "${SERVER_DIR}/server.properties" ]; then
+        sed -i "s/^level-name=.*/level-name=${world}/" "${SERVER_DIR}/server.properties"
+        info "  level-name → ${world}"
+    fi
+
+    # bukkit.yml: default-world-name（存在すれば更新、なければ settings: 直下に追加）
+    local bukkit="${SERVER_DIR}/bukkit.yml"
+    if [ -f "${bukkit}" ]; then
+        if grep -q "default-world-name:" "${bukkit}"; then
+            sed -i "s/^  default-world-name:.*/  default-world-name: ${world}/" "${bukkit}"
+        else
+            sed -i "s/^settings:/settings:\n  default-world-name: ${world}/" "${bukkit}"
+        fi
+        info "  default-world-name → ${world}"
+    fi
+}
+
 # ── DiscordSRV 設定の自動注入 ────────────────────────────────
 # サーバー初回起動後に DiscordSRV/config.yml が生成されたタイミングで反映
 # 対象: DISCORD_BOT_TOKEN / DISCORD_CHANNEL_ID
@@ -289,6 +313,9 @@ download_plugins
 
 # バンドルプラグインをコピー
 copy_bundled_plugins
+
+# デフォルトワールド設定注入
+inject_world_config
 
 # DiscordSRV 設定注入（BotToken・チャンネルID）
 inject_discord_config
