@@ -34,6 +34,8 @@ services:
       MEMORY: ${MEMORY:-4G}
       # DiscordSRV Bot Token（.env に設定）
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      # ログのバナー表示名を変更したい場合は .env に追加（省略可）
+      # SERVER_DISPLAY_NAME: "TUSマイクラサークル"
 
     # コンテナがOOM Killerに落とされないよう、JVMより少し多めに確保
     # VPS の RAM が 4GB なら MEMORY=3G にしてここを 4g に
@@ -48,10 +50,15 @@ services:
 
   # ── playit.gg (ポート開放不要トンネリング) ────────────────
   # 自宅Macからルーター設定なしで外部公開するために使用
-  # 初回: docker compose up playit → 表示されたURLで認証 → playit-data/ にトークン保存
-  # 以降は自動接続
   #
-  # コメントを外して有効化:
+  # 【初回セットアップ手順】
+  #   1. 下のコメントを外して保存
+  #   2. docker compose up playit
+  #   3. ログに表示される https://playit.gg/claim/XXXX にアクセスして認証
+  #   4. 以降は自動接続（PLAYIT_SECRET は .env に設定不要・自動保存）
+  #
+  # 【env変数】SECRET_KEY が playit-agent の正式な変数名
+  #
   # playit:
   #   image: ghcr.io/playit-cloud/playit-agent:latest
   #   container_name: tus-playit
@@ -59,8 +66,11 @@ services:
   #   # minecraftコンテナのネットワークを共有（127.0.0.1:25565 でアクセス可能）
   #   network_mode: "service:minecraft"
   #   volumes:
+  #     # 認証トークンをホストに永続保存（コンテナ再作成後も再認証不要）
   #     - ./playit-data:/etc/playit
   #   environment:
-  #     PLAYIT_SECRET: ${PLAYIT_SECRET:-}
+  #     # 初回はSECRET_KEY不要。認証後に ./playit-data/ に自動保存される。
+  #     # 2台目以降のVPSに同じシークレットを使う場合のみ .env に設定
+  #     SECRET_KEY: ${PLAYIT_SECRET:-}
   #   depends_on:
   #     - minecraft

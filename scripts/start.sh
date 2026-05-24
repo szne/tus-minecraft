@@ -51,8 +51,10 @@ download_paper() {
     local version build jar_name
     version=$(curl -fsSL https://api.papermc.io/v2/projects/paper \
         | jq -r '.versions[-1]')
+    # channel は "STABLE" / "EXPERIMENTAL" など大文字で返るため、
+    # フィルタせず最後のビルドを取得（= 最新の安定ビルド）
     build=$(curl -fsSL "https://api.papermc.io/v2/projects/paper/versions/${version}/builds" \
-        | jq -r '[.builds[] | select(.channel=="default")] | last | .build')
+        | jq -r '.builds[-1].build')
     jar_name="paper-${version}-${build}.jar"
 
     info "  バージョン: ${version} / ビルド: ${build}"
@@ -170,11 +172,14 @@ inject_discord_token() {
 
 # ── メイン処理 ───────────────────────────────────────────────
 echo ""
-echo "  ╔══════════════════════════════════════════════╗"
-echo "  ║   東京理科大学マインクラフトサークル（仮）      ║"
-echo "  ║   Paper Server Starting...                   ║"
-echo "  ║   Memory: ${MEMORY}                               ║"
-echo "  ╚══════════════════════════════════════════════╝"
+# SERVER_DISPLAY_NAME 環境変数で表示名を変更可能（デフォルト: 下記）
+SERVER_DISPLAY_NAME="${SERVER_DISPLAY_NAME:-東京理科大学 MCサークル（仮）}"
+
+echo "  ╔══════════════════════════════════════╗"
+echo "  ║  ${SERVER_DISPLAY_NAME}"
+echo "  ║  Paper Server Starting..."
+echo "  ║  Memory: ${MEMORY}"
+echo "  ╚══════════════════════════════════════╝"
 echo ""
 
 cd "${SERVER_DIR}"
