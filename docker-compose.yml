@@ -65,8 +65,8 @@ services:
     image: ghcr.io/playit-cloud/playit-agent:latest
     container_name: tus-playit
     restart: unless-stopped
-    # minecraftコンテナのネットワークを共有（127.0.0.1:25565 でアクセス可能）
-    network_mode: "service:minecraft"
+    # network_mode を外して独立ネットワークにすることでDNSが有効になる
+    # （playit.gg ダッシュボードのトンネル転送先を minecraft:25565 に設定すること）
     volumes:
       # 認証トークンをホストに永続保存（コンテナ再作成後も再認証不要）
       - ./playit-data:/etc/playit
