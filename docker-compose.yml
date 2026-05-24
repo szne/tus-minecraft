@@ -59,18 +59,18 @@ services:
   #
   # 【env変数】SECRET_KEY が playit-agent の正式な変数名
   #
-  # playit:
-  #   image: ghcr.io/playit-cloud/playit-agent:latest
-  #   container_name: tus-playit
-  #   restart: unless-stopped
-  #   # minecraftコンテナのネットワークを共有（127.0.0.1:25565 でアクセス可能）
-  #   network_mode: "service:minecraft"
-  #   volumes:
-  #     # 認証トークンをホストに永続保存（コンテナ再作成後も再認証不要）
-  #     - ./playit-data:/etc/playit
-  #   environment:
-  #     # 初回はSECRET_KEY不要。認証後に ./playit-data/ に自動保存される。
-  #     # 2台目以降のVPSに同じシークレットを使う場合のみ .env に設定
-  #     SECRET_KEY: ${PLAYIT_SECRET:-}
-  #   depends_on:
-  #     - minecraft
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent:latest
+    container_name: tus-playit
+    restart: unless-stopped
+    # minecraftコンテナのネットワークを共有（127.0.0.1:25565 でアクセス可能）
+    network_mode: "service:minecraft"
+    volumes:
+      # 認証トークンをホストに永続保存（コンテナ再作成後も再認証不要）
+      - ./playit-data:/etc/playit
+    environment:
+      # 初回はSECRET_KEY不要。認証後に ./playit-data/ に自動保存される。
+      # 2台目以降のVPSに同じシークレットを使う場合のみ .env に設定
+      SECRET_KEY: ${PLAYIT_SECRET:-}
+    depends_on:
+      - minecraft
