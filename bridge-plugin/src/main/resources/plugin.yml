@@ -1,0 +1,12 @@
+name: JapanizeDiscordBridge
+version: 1.0
+main: me.tus.japanizechat.JapanizeDiscordBridge
+api-version: '1.21'
+description: >
+  JapanizeChat で変換された日本語テキストを DiscordSRV に橋渡しするプラグイン。
+  MONITOR 優先度で event.message() に日本語を設定し、DiscordSRV がそれを読む。
+authors: [TUS-MC]
+
+# DiscordSRV より先にロードすることで、同じ MONITOR 優先度のイベントを先に処理する
+loadbefore: [DiscordSRV]
+softdepend: [JapanizeChat, DiscordSRV]

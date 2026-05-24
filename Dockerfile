@@ -4,6 +4,19 @@
 # ============================================================
 # eclipse-temurin:21 は linux/amd64 & linux/arm64 両対応
 # → M1 Mac でも VPS (x86_64) でもそのまま動作
+# ============================================================
+
+# ── ステージ1: JapanizeDiscordBridge プラグインをコンパイル ──
+# JapanizeChat（ChatRenderer）→ DiscordSRV（event.message）のブリッジ
+FROM maven:3.9-eclipse-temurin-21 AS bridge-build
+WORKDIR /build
+COPY bridge-plugin/pom.xml .
+# 依存関係を先にダウンロード（Dockerキャッシュ最適化）
+RUN mvn dependency:go-offline -q
+COPY bridge-plugin/src ./src
+RUN mvn package -q -DskipTests
+
+# ── ステージ2: 本番イメージ ───────────────────────────────────
 FROM eclipse-temurin:21-jre-jammy
 
 LABEL maintainer="TUS Minecraft Circle"
@@ -26,6 +39,12 @@ RUN mkdir -p /server && chown minecraft:minecraft /server
 
 # ── 設定テンプレート（初回起動時に /server へコピー） ────────
 COPY --chown=minecraft:minecraft config/ /config-templates/
+
+# ── バンドルプラグイン（ビルドステージからコピー） ────────────
+# JapanizeDiscordBridge: JapanizeChat ↔ DiscordSRV 日本語ブリッジ
+RUN mkdir -p /bundled-plugins
+COPY --from=bridge-build --chown=minecraft:minecraft \
+    /build/target/JapanizeDiscordBridge.jar /bundled-plugins/
 
 # ── 起動スクリプト ────────────────────────────────────────────
 COPY --chown=minecraft:minecraft scripts/start.sh /start.sh

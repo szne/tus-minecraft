@@ -186,6 +186,25 @@ download_plugins() {
     success "全プラグイン準備完了"
 }
 
+# ── バンドルプラグインのコピー ────────────────────────────────
+# Docker イメージにビルド済みで同梱されているプラグインを plugins/ に配置
+# （JapanizeDiscordBridge: JapanizeChat ↔ DiscordSRV 日本語ブリッジ）
+copy_bundled_plugins() {
+    local bundled_dir="/bundled-plugins"
+    if [ ! -d "${bundled_dir}" ]; then
+        return
+    fi
+
+    for jar in "${bundled_dir}"/*.jar; do
+        [ -f "${jar}" ] || continue
+        local fname
+        fname=$(basename "${jar}")
+        # 常に上書きコピー（Docker再ビルド時にプラグインを更新するため）
+        cp -f "${jar}" "${PLUGINS_DIR}/${fname}"
+        info "  バンドルプラグイン: ${fname}"
+    done
+}
+
 # ── 初回セットアップ ─────────────────────────────────────────
 first_run_setup() {
     info "初回セットアップを実行中..."
@@ -267,6 +286,9 @@ fi
 
 # プラグインダウンロード（未インストール分のみ）
 download_plugins
+
+# バンドルプラグインをコピー
+copy_bundled_plugins
 
 # DiscordSRV 設定注入（BotToken・チャンネルID）
 inject_discord_config
