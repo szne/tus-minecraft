@@ -80,11 +80,18 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
             return;
         }
 
+        // 変換結果が日本語文字のみか確認（英語を変換したゴミを除外）
+        // 例: "hello" → "へっぉ" は全ひらがなで通過してしまうが許容範囲
+        //     "good morning" → "ごおｄ もｒ人ｇ" は半角ラテンを含むため除外
+        if (!isJapaneseOnly(japanese)) {
+            return;
+        }
+
         // ゲーム内表示用に元のローマ字 Component を保存
         Component romajiComponent = event.message();
 
-        // Discord 用に event.message() を日本語に更新
-        event.message(Component.text(japanese));
+        // Discord 用に "ローマ字 (日本語)" 形式で両方表示
+        event.message(Component.text(romaji + " (" + japanese + ")"));
 
         // renderer をラップ: ゲーム内プレイヤーには romaji をベースとした表示を維持
         // （JapanizeChat が設定した renderer をそのまま使いつつ、message パラメータをローマ字に固定）
@@ -125,6 +132,32 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
             getLogger().fine("Google API 変換失敗 (無視): " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 文字列が日本語文字のみで構成されているか確認する。
+     * 英語を変換したゴミ（半角カタカナ・全角ラテン文字混じり）を除外するためのフィルタ。
+     *
+     * 受け入れる文字:
+     *   U+3000-U+303F  CJK 記号・句読点
+     *   U+3040-U+309F  ひらがな
+     *   U+30A0-U+30FF  カタカナ（全角）
+     *   U+4E00-U+9FFF  漢字
+     *   U+0020         半角スペース
+     *   U+3000         全角スペース
+     *
+     * 除外（英語→日本語変換失敗のサイン）:
+     *   U+FF01-U+FF60  全角ラテン文字（ｄ, ｒ, ｇ など）
+     *   U+FF65-U+FF9F  半角カタカナ
+     */
+    private boolean isJapaneseOnly(String text) {
+        return text.chars().allMatch(c ->
+                c == ' ' || c == '　' ||         // スペース
+                (c >= 0x3000 && c <= 0x303F) ||      // CJK 記号・句読点
+                (c >= 0x3040 && c <= 0x309F) ||      // ひらがな
+                (c >= 0x30A0 && c <= 0x30FF) ||      // カタカナ（全角）
+                (c >= 0x4E00 && c <= 0x9FFF)         // 漢字
+        );
     }
 
     /**
