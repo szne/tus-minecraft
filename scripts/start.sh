@@ -166,13 +166,21 @@ download_plugins() {
 
     # ⑦ ViaVersion — GeyserMC が要求する Java バージョン互換レイヤー
     if [ ! -f "${PLUGINS_DIR}/ViaVersion.jar" ]; then
-        info "  [7/7] ViaVersion (GeyserMC 互換)..."
+        info "  [7/8] ViaVersion (GeyserMC 互換)..."
         download_github_latest \
             "ViaVersion/ViaVersion" \
             "${PLUGINS_DIR}/ViaVersion.jar" \
             "ViaVersion-"
     else
-        info "  [7/7] ViaVersion        → スキップ（既存）"
+        info "  [7/8] ViaVersion        → スキップ（既存）"
+    fi
+
+    # ⑧ JapanizeChat — ローマ字入力をリアルタイムで日本語に変換
+    if [ ! -f "${PLUGINS_DIR}/JapanizeChat.jar" ]; then
+        info "  [8/8] JapanizeChat (ローマ字→日本語)..."
+        download_modrinth_latest "japanizechat" "${PLUGINS_DIR}/JapanizeChat.jar"
+    else
+        info "  [8/8] JapanizeChat      → スキップ（既存）"
     fi
 
     success "全プラグイン準備完了"
@@ -220,6 +228,12 @@ inject_discord_config() {
         sed -i "s/\"global\": \"[0-9]*\"/\"global\": \"${DISCORD_CHANNEL_ID}\"/" "${config}"
         info "  DiscordSRV: チャンネルID (global) を注入しました → ${DISCORD_CHANNEL_ID}"
     fi
+
+    # Webhook モードでプレイヤーのスキンアイコンを Discord に表示
+    # AvatarUrl に crafatar.com を設定し、Webhook 配信を有効化
+    sed -i "s/^Experiment_WebhookChatMessageDelivery: false/Experiment_WebhookChatMessageDelivery: true/" "${config}"
+    sed -i "s|^AvatarUrl: .*|AvatarUrl: \"https://crafatar.com/avatars/{uuid}?size=128\&overlay\"|" "${config}"
+    info "  DiscordSRV: Webhook アバター表示を有効化しました"
 }
 
 # ── メイン処理 ───────────────────────────────────────────────
