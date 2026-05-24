@@ -22,7 +22,7 @@ warn()    { echo -e "\033[1;33m[TUS-MC]\033[0m ⚠ $*"; }
 error()   { echo -e "\033[1;31m[TUS-MC]\033[0m ✘ $*" >&2; }
 
 # ── GitHub Releases から最新 jar をダウンロード ──────────────
-# 引数: <org/repo> <保存先パス> <アセット名に含まれる文字列>
+# 引数: <org/repo> <保存先パス> <アセット名に含まれる文字列（大文字小文字区別あり）>
 download_github_latest() {
     local repo="$1"
     local outfile="$2"
@@ -35,8 +35,29 @@ download_github_latest() {
           '.assets[] | select(.name | contains($f)) | .browser_download_url' \
         | head -1)
 
-    if [ -z "${url}" ]; then
+    if [ -z "${url}" ] || [ "${url}" = "null" ]; then
         error "GitHub releases から ${repo} の URL が取得できませんでした（フィルタ: ${name_filter}）"
+        return 1
+    fi
+
+    info "    → ${url}"
+    curl -fSL --progress-bar -o "${outfile}" "${url}"
+}
+
+# ── Modrinth から最新の安定版 jar をダウンロード ──────────────
+# 引数: <project-slug> <保存先パス>
+# LuckPerms / CoreProtect / Multiverse-Core はGitHub Releasesが使えないため使用
+download_modrinth_latest() {
+    local slug="$1"
+    local outfile="$2"
+
+    local url
+    # version_type=="release" のもののみ取得（alpha/beta/pre-release を除外）
+    url=$(curl -fsSL "https://api.modrinth.com/v2/project/${slug}/version?limit=20" \
+        | jq -r '[.[] | select(.version_type == "release")] | .[0].files[0].url')
+
+    if [ -z "${url}" ] || [ "${url}" = "null" ]; then
+        error "Modrinth から ${slug} の URL が取得できませんでした"
         return 1
     fi
 
@@ -96,17 +117,16 @@ download_plugins() {
     fi
 
     # ③ LuckPerms — 権限管理（Discord ロール連携の核）
+    # GitHub Releases が空のため Modrinth から取得
     if [ ! -f "${PLUGINS_DIR}/LuckPerms-Bukkit.jar" ]; then
         info "  [3/6] LuckPerms (権限管理)..."
-        download_github_latest \
-            "LuckPerms/LuckPerms" \
-            "${PLUGINS_DIR}/LuckPerms-Bukkit.jar" \
-            "Bukkit"
+        download_modrinth_latest "luckperms" "${PLUGINS_DIR}/LuckPerms-Bukkit.jar"
     else
         info "  [3/6] LuckPerms         → スキップ（既存）"
     fi
 
     # ④ DiscordSRV — Discord 双方向連携
+    # GitHub Releases が有効（アセット名: DiscordSRV-Build-x.x.x.jar）
     if [ ! -f "${PLUGINS_DIR}/DiscordSRV-Build.jar" ]; then
         info "  [4/6] DiscordSRV (Discord連携)..."
         download_github_latest \
@@ -118,23 +138,19 @@ download_plugins() {
     fi
 
     # ⑤ CoreProtect — 荒らし対策ログ・ロールバック
+    # v22以降 GitHub Releases にアセットなし → Modrinth から取得
     if [ ! -f "${PLUGINS_DIR}/CoreProtect.jar" ]; then
         info "  [5/6] CoreProtect (荒らし対策)..."
-        download_github_latest \
-            "PlayPro/CoreProtect" \
-            "${PLUGINS_DIR}/CoreProtect.jar" \
-            "CoreProtect"
+        download_modrinth_latest "coreprotect" "${PLUGINS_DIR}/CoreProtect.jar"
     else
         info "  [5/6] CoreProtect       → スキップ（既存）"
     fi
 
     # ⑥ Multiverse-Core — マルチワールド（シーズン制アーカイブ）
+    # GitHub のファイル名が全小文字（multiverse-core-x.x.x.jar）→ Modrinth で安定版を取得
     if [ ! -f "${PLUGINS_DIR}/Multiverse-Core.jar" ]; then
         info "  [6/6] Multiverse-Core (マルチワールド)..."
-        download_github_latest \
-            "Multiverse/Multiverse-Core" \
-            "${PLUGINS_DIR}/Multiverse-Core.jar" \
-            "Multiverse-Core"
+        download_modrinth_latest "multiverse-core" "${PLUGINS_DIR}/Multiverse-Core.jar"
     else
         info "  [6/6] Multiverse-Core   → スキップ（既存）"
     fi
