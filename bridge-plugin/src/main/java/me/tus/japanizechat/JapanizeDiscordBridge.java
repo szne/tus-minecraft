@@ -3,6 +3,7 @@ package me.tus.japanizechat;
 import io.papermc.paper.chat.ChatRenderer;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -20,20 +21,11 @@ import java.time.Duration;
 /**
  * JapanizeDiscordBridge
  *
- * 問題:
- *   JapanizeChat はローマ字→日本語変換を ChatRenderer (event.renderer) で行う。
- *   DiscordSRV は MONITOR 優先度で event.message() を読んで Discord に送信する。
- *   ChatRenderer はプレイヤーへの表示のみを変更し、event.message() は romaji のまま。
- *   そのため Discord にはローマ字が届いてしまう。
+ * Google Input Tools API でローマ字→日本語変換を行い、
+ * ゲーム内表示と Discord 送信の両方に同じ変換結果を適用する。
  *
- * 解決策:
- *   このプラグインを loadbefore: [DiscordSRV] で MONITOR 優先度で動かす。
- *   DiscordSRV の MONITOR リスナーより先に event.message() を日本語に更新することで、
- *   Discord に日本語テキストが届くようになる。
- *
- *   また、既存の JapanizeChat の renderer をラップし、元のローマ字 Component を
- *   ベースとして渡すことで、ゲーム内プレイヤーへの表示はそのまま維持する。
- *   （「ローマ字 (日本語)」の形式が保たれる）
+ * ゲーム内: 「ローマ字 (日本語)」形式で表示（JapanizeChat の renderer を上書き）
+ * Discord : 「ローマ字 (日本語)」形式で DiscordSRV に渡す
  */
 public final class JapanizeDiscordBridge extends JavaPlugin implements Listener {
 
@@ -52,7 +44,7 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("JapanizeDiscordBridge 有効化 — Discord への日本語送信を担当します");
+        getLogger().info("JapanizeDiscordBridge 有効化 — ゲーム内・Discord 両方に日本語変換を適用します");
     }
 
     /**
@@ -62,15 +54,15 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
      * 処理:
      * 1. メッセージが ASCII ローマ字か確認
      * 2. Google Input Tools API で日本語に変換
-     * 3. event.message() を日本語 Component に変更 → Discord には日本語が届く
-     * 4. renderer をラップして元のローマ字をベースにする → ゲーム内表示は変わらない
+     * 3. event.renderer() を上書き → ゲーム内も当プラグインの変換結果を表示
+     * 4. event.message() を更新 → Discord にも同じ変換結果が届く
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChat(AsyncChatEvent event) {
         String romaji = PlainTextComponentSerializer.plainText()
                 .serialize(event.message());
 
-        // 空メッセージ・記号のみ・日本語含む場合はスキップ
+        // 空メッセージ・日本語含む場合はスキップ
         if (romaji.isBlank() || !ROMAJI_PATTERN.matcher(romaji).matches()) {
             return;
         }
@@ -83,15 +75,18 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
         // ゲーム内表示用に元のローマ字 Component を保存
         Component romajiComponent = event.message();
 
-        // Discord 用に "ローマ字 (日本語)" 形式で両方表示
-        event.message(Component.text(romaji + " (" + japanese + ")"));
-
-        // renderer をラップ: ゲーム内プレイヤーには romaji をベースとした表示を維持
-        // （JapanizeChat が設定した renderer をそのまま使いつつ、message パラメータをローマ字に固定）
-        ChatRenderer originalRenderer = event.renderer();
+        // ゲーム内: JapanizeChat の renderer を上書きして当プラグインの変換結果を使用
+        // 「ローマ字 (日本語)」形式で表示（日本語部分はグレー）
+        Component japaneseAnnotation = Component.text(" (" + japanese + ")")
+                .color(NamedTextColor.GRAY);
         event.renderer((source, displayName, message, viewer) ->
-                originalRenderer.render(source, displayName, romajiComponent, viewer)
+                ChatRenderer.defaultRenderer()
+                        .render(source, displayName, romajiComponent, viewer)
+                        .append(japaneseAnnotation)
         );
+
+        // Discord 用: event.message() に「ローマ字 (日本語)」を設定
+        event.message(Component.text(romaji + " (" + japanese + ")"));
     }
 
     /**
