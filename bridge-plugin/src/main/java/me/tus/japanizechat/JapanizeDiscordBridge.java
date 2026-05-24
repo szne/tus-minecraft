@@ -130,32 +130,44 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
     /**
      * Google Input Tools API のレスポンスを解析し、第一候補の日本語文字列を返す。
      *
-     * レスポンス構造:
-     *   [0] = "SUCCESS"
-     *   [1][0][0] = 入力テキスト
-     *   [1][0][1][0] = 第一候補（最も確度の高い変換）
+     * 実際のレスポンス例:
+     *   ["SUCCESS",[["konnichiha",["こんにちは"],[],{"candidate_type":[0],"matched_length":[5]}]]]
+     *
+     * 構造:
+     *   1番目の文字列 = "SUCCESS"
+     *   2番目の文字列 = 入力テキスト "konnichiha"
+     *   3番目の文字列 = 第一候補 "こんにちは" ← これを返す
+     *
+     * ※ 括弧カウント方式だと ["candidate"],[],{"candidate_type":[0]...} の
+     *    空配列 [] が5番目の [ になり "candidate_type" が取れてしまうバグがあった
      */
     private String parseGoogleResponse(String json) {
         if (json == null || !json.contains("SUCCESS")) return null;
         try {
-            // ["SUCCESS",[["text",[["CANDIDATE",...
-            // ネストされた配列の5番目の '[' の後に第一候補の文字列がある
-            int bracketCount = 0;
-            for (int i = 0; i < json.length(); i++) {
-                char c = json.charAt(i);
-                if (c == '[') {
-                    bracketCount++;
-                    if (bracketCount == 5) {
-                        // "[" の次は '"' → 文字列の開始
-                        int strStart = json.indexOf('"', i + 1);
-                        if (strStart == -1) return null;
-                        int strEnd = json.indexOf('"', strStart + 1);
-                        if (strEnd == -1) return null;
-                        String candidate = json.substring(strStart + 1, strEnd);
-                        return candidate.isEmpty() ? null : candidate;
-                    }
-                }
-            }
+            int pos = 0;
+
+            // 1番目の文字列 "SUCCESS" をスキップ
+            int open1 = json.indexOf('"', pos);
+            if (open1 < 0) return null;
+            int close1 = json.indexOf('"', open1 + 1);
+            if (close1 < 0) return null;
+            pos = close1 + 1;
+
+            // 2番目の文字列（入力テキスト）をスキップ
+            int open2 = json.indexOf('"', pos);
+            if (open2 < 0) return null;
+            int close2 = json.indexOf('"', open2 + 1);
+            if (close2 < 0) return null;
+            pos = close2 + 1;
+
+            // 3番目の文字列 = 第一候補
+            int open3 = json.indexOf('"', pos);
+            if (open3 < 0) return null;
+            int close3 = json.indexOf('"', open3 + 1);
+            if (close3 < 0) return null;
+
+            String candidate = json.substring(open3 + 1, close3);
+            return candidate.isEmpty() ? null : candidate;
         } catch (Exception e) {
             getLogger().fine("レスポンス解析失敗: " + e.getMessage());
         }
