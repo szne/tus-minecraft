@@ -1,0 +1,66 @@
+# ============================================================
+# 東京理科大学マインクラフトサークル（仮）
+# Docker Compose - Paper + playit.gg トンネリング
+# ============================================================
+# 使い方:
+#   cp .env.example .env && vi .env  # 環境変数を設定
+#   docker compose up -d             # 起動
+#   docker compose logs -f           # ログ確認
+#   docker compose down              # 停止
+# ============================================================
+
+services:
+  # ── Minecraft (Paper Server) ──────────────────────────────
+  minecraft:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tus-minecraft
+    restart: unless-stopped
+    tty: true        # コンソール入力を受け付ける
+    stdin_open: true
+
+    ports:
+      - "${JAVA_PORT:-25565}:25565/tcp"    # Java Edition
+      - "${BEDROCK_PORT:-19132}:19132/udp" # Bedrock (GeyserMC)
+
+    volumes:
+      # サーバー全データをホストに永続化（ワールド・プラグイン設定・ログ）
+      - ./data:/server
+
+    environment:
+      TZ: Asia/Tokyo
+      # JVMヒープメモリ（VPSのRAMに合わせて .env で調整）
+      MEMORY: ${MEMORY:-4G}
+      # DiscordSRV Bot Token（.env に設定）
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+
+    # コンテナがOOM Killerに落とされないよう、JVMより少し多めに確保
+    # VPS の RAM が 4GB なら MEMORY=3G にしてここを 4g に
+    # mem_limit: 5g
+    # memswap_limit: 5g
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── playit.gg (ポート開放不要トンネリング) ────────────────
+  # 自宅Macからルーター設定なしで外部公開するために使用
+  # 初回: docker compose up playit → 表示されたURLで認証 → playit-data/ にトークン保存
+  # 以降は自動接続
+  #
+  # コメントを外して有効化:
+  # playit:
+  #   image: ghcr.io/playit-cloud/playit-agent:latest
+  #   container_name: tus-playit
+  #   restart: unless-stopped
+  #   # minecraftコンテナのネットワークを共有（127.0.0.1:25565 でアクセス可能）
+  #   network_mode: "service:minecraft"
+  #   volumes:
+  #     - ./playit-data:/etc/playit
+  #   environment:
+  #     PLAYIT_SECRET: ${PLAYIT_SECRET:-}
+  #   depends_on:
+  #     - minecraft
