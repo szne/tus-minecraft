@@ -216,9 +216,9 @@ inject_discord_config() {
     fi
 
     if [ -n "${DISCORD_CHANNEL_ID:-}" ]; then
-        # Channels.global の値を置換（DiscordSRV のデフォルト形式に対応）
-        sed -i "s/^  global: .*/  global: \"${DISCORD_CHANNEL_ID}\"/" "${config}"
-        info "  DiscordSRV: チャンネルID (global) を注入しました"
+        # DiscordSRV の実際の書式: Channels: {"global": "000000000000000000"}
+        sed -i "s/\"global\": \"[0-9]*\"/\"global\": \"${DISCORD_CHANNEL_ID}\"/" "${config}"
+        info "  DiscordSRV: チャンネルID (global) を注入しました → ${DISCORD_CHANNEL_ID}"
     fi
 }
 
