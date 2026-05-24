@@ -97,12 +97,15 @@ curl -s https://api.mojang.com/users/profiles/minecraft/ユーザー名 | python
 
 ## 4. 複数ワールドの作成（Multiverse-Core）
 
+> **⚠️ v5.x の変更点**: ワールドへのテレポートに `w:` プレフィックスが必要になりました。
+> 旧: `/mv tp world名` → 新: `/mvtp w:world名`
+
 ### 基本操作
 
 ```
-/mv list              # ワールド一覧
-/mv tp ワールド名      # ワールドへ移動
-/mv who               # 各ワールドにいるプレイヤー一覧
+/mv list                # ワールド一覧
+/mvtp w:ワールド名       # ワールドへ移動（v5.x 新形式）
+/mv who                 # 各ワールドにいるプレイヤー一覧
 ```
 
 ### 企画書のワールド構成を作る
@@ -127,7 +130,7 @@ curl -s https://api.mojang.com/users/profiles/minecraft/ユーザー名 | python
 ```
 # OBが観光だけできる設定
 /mv modify set allowbuild false 過去ワールド名
-/mv modify set allowbreaK false 過去ワールド名
+/mv modify set allowbreak false 過去ワールド名
 ```
 
 ### スポーン地点を設定する
@@ -361,7 +364,7 @@ docker compose up -d
 | OP剥奪 | `deop 名前` / `/deop 名前` |
 | ワールド一覧 | `/mv list` |
 | ワールド作成 | `/mv create 名前 normal` |
-| ワールド移動 | `/mv tp 名前` |
+| ワールド移動 | `/mvtp w:名前` |
 | 荒らし調査 | `/co inspect` |
 | 荒らしロールバック | `/co rollback user:名前 time:1h radius:50` |
 | 権限確認 | `/lp user 名前 permission info` |
