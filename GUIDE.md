@@ -294,6 +294,82 @@ DiscordSRV は以下の形式でメッセージを転送します:
 
 ローマ字入力は JapanizeChat + JapanizeDiscordBridge により自動変換されます（→ [9章](#9-ローマ字日本語変換japanizechat)）。
 
+### Discord アカウント認証（アカウント連携）
+
+プレイヤーが Minecraft と Discord アカウントを紐づける手順です。  
+連携済みユーザーはホワイトリストに自動追加され、Discord ロールでゲーム内権限も自動同期されます。
+
+#### プレイヤー側の手順
+
+```
+1. Minecraft でゲームに参加
+2. /discord link  と入力
+3. 表示される 4桁のコード（例: 1234）をコピー
+4. Discord で Bot に DM: /link 1234
+5. 「Successfully linked!」が表示されれば完了
+```
+
+> **Bedrock プレイヤーも同じ手順**で連携できます（ドット付き名前 `.szkk` のまま）。
+
+#### 管理者側の設定（ホワイトリスト自動追加）
+
+`data/plugins/DiscordSRV/config.yml` を編集:
+
+```yaml
+# 認証済みユーザーを自動でホワイトリストに追加する
+MinecraftDiscordAccountLinkedWhitelistAdd: true
+
+# 連携解除したユーザーをホワイトリストから外す
+MinecraftDiscordAccountUnlinkedWhitelistRemove: true
+```
+
+設定後:
+```bash
+docker compose restart minecraft
+# または /discord reload（ゲーム内・コンソール）
+```
+
+#### 現在の連携状況を確認する（管理者）
+
+```
+/discord linked <Minecraftユーザー名>   # 連携済みDiscordアカウントを確認
+/discord unlink <Minecraftユーザー名>   # 連携を解除（OP）
+```
+
+---
+
+### Discord ニックネームの自動同期
+
+連携後、Discord のニックネームを **Minecraft 名に自動更新**できます。
+
+`data/plugins/DiscordSRV/config.yml` を編集:
+
+```yaml
+# ニックネーム同期を有効化
+NicknameSynchronizationEnabled: true
+
+# 同期する間隔（分）
+NicknameSynchronizationCycleTime: 60
+
+# ニックネームのフォーマット（%minecraftname% = Minecraft ユーザー名）
+NicknameSynchronizationFormat: "%minecraftname%"
+```
+
+**フォーマット例:**
+
+| 設定値 | Discord ニックネームの表示 |
+|:--|:--|
+| `%minecraftname%` | `TanakaKohei` |
+| `%minecraftname% [MC]` | `TanakaKohei [MC]` |
+| `[%minecraftname%]` | `[TanakaKohei]` |
+
+> **「Discord名（Minecraft名）」形式について**  
+> DiscordSRV 標準の `NicknameSynchronizationFormat` に使えるプレースホルダーは  
+> Minecraft 側の名前のみです（Discord 表示名は参照不可）。  
+> `田中太郎（TanakaKohei）` のような形式にするには PlaceholderAPI + DiscordSRV 拡張が必要になります。
+
+---
+
 ### Discord ロールでゲーム内権限を自動連携
 
 `data/plugins/DiscordSRV/synchronization.yml` を編集:
