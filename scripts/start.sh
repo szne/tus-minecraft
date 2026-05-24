@@ -178,7 +178,7 @@ inject_discord_token() {
 # ── メイン処理 ───────────────────────────────────────────────
 echo ""
 # SERVER_DISPLAY_NAME 環境変数で表示名を変更可能（デフォルト: 下記）
-SERVER_DISPLAY_NAME="${SERVER_DISPLAY_NAME:-東京理科大学 MCサークル（仮）}"
+SERVER_DISPLAY_NAME="${SERVER_DISPLAY_NAME:-理科大マイクラ部}"
 
 echo "  ╔══════════════════════════════════════╗"
 echo "  ║  ${SERVER_DISPLAY_NAME}"
