@@ -234,6 +234,11 @@ inject_discord_config() {
     sed -i "s/^Experiment_WebhookChatMessageDelivery: false/Experiment_WebhookChatMessageDelivery: true/" "${config}"
     sed -i "s|^AvatarUrl: .*|AvatarUrl: \"https://crafatar.com/avatars/{uuid}?size=128\&overlay\"|" "${config}"
     info "  DiscordSRV: Webhook アバター表示を有効化しました"
+
+    # JapanizeChat は Paper 新式の AsyncChatEvent を使用するため、
+    # DiscordSRV も同じイベントを読むよう切り替え（これにより変換後の日本語がDiscordに届く）
+    sed -i "s/^UseModernPaperChatEvent: false/UseModernPaperChatEvent: true/" "${config}"
+    info "  DiscordSRV: UseModernPaperChatEvent を有効化しました（JapanizeChat 連携）"
 }
 
 # ── メイン処理 ───────────────────────────────────────────────
