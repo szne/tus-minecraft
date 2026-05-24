@@ -45,19 +45,28 @@ download_github_latest() {
 }
 
 # ── Modrinth から最新の安定版 jar をダウンロード ──────────────
-# 引数: <project-slug> <保存先パス>
+# 引数: <project-slug> <保存先パス> [loader（省略時は全ローダー対象）]
 # LuckPerms / CoreProtect / Multiverse-Core はGitHub Releasesが使えないため使用
 download_modrinth_latest() {
     local slug="$1"
     local outfile="$2"
+    local loader="${3:-}"  # 例: "bukkit", "paper" （省略で全ローダー対象）
+
+    local api_url
+    if [ -n "${loader}" ]; then
+        # ローダーを指定してフィルタ（URL エンコード済み）
+        api_url="https://api.modrinth.com/v2/project/${slug}/version?loaders=%5B%22${loader}%22%5D&limit=20"
+    else
+        api_url="https://api.modrinth.com/v2/project/${slug}/version?limit=20"
+    fi
 
     local url
     # version_type=="release" のもののみ取得（alpha/beta/pre-release を除外）
-    url=$(curl -fsSL "https://api.modrinth.com/v2/project/${slug}/version?limit=20" \
+    url=$(curl -fsSL "${api_url}" \
         | jq -r '[.[] | select(.version_type == "release")] | .[0].files[0].url')
 
     if [ -z "${url}" ] || [ "${url}" = "null" ]; then
-        error "Modrinth から ${slug} の URL が取得できませんでした"
+        error "Modrinth から ${slug} (loader: ${loader:-any}) の URL が取得できませんでした"
         return 1
     fi
 
@@ -117,10 +126,10 @@ download_plugins() {
     fi
 
     # ③ LuckPerms — 権限管理（Discord ロール連携の核）
-    # GitHub Releases が空のため Modrinth から取得
+    # GitHub Releases が空のため Modrinth から取得（bukkit ローダー指定で Bukkit 版を確実に取得）
     if [ ! -f "${PLUGINS_DIR}/LuckPerms-Bukkit.jar" ]; then
         info "  [3/6] LuckPerms (権限管理)..."
-        download_modrinth_latest "luckperms" "${PLUGINS_DIR}/LuckPerms-Bukkit.jar"
+        download_modrinth_latest "luckperms" "${PLUGINS_DIR}/LuckPerms-Bukkit.jar" "bukkit"
     else
         info "  [3/6] LuckPerms         → スキップ（既存）"
     fi
@@ -153,6 +162,17 @@ download_plugins() {
         download_modrinth_latest "multiverse-core" "${PLUGINS_DIR}/Multiverse-Core.jar"
     else
         info "  [6/6] Multiverse-Core   → スキップ（既存）"
+    fi
+
+    # ⑦ ViaVersion — GeyserMC が要求する Java バージョン互換レイヤー
+    if [ ! -f "${PLUGINS_DIR}/ViaVersion.jar" ]; then
+        info "  [7/7] ViaVersion (GeyserMC 互換)..."
+        download_github_latest \
+            "ViaVersion/ViaVersion" \
+            "${PLUGINS_DIR}/ViaVersion.jar" \
+            "ViaVersion-"
+    else
+        info "  [7/7] ViaVersion        → スキップ（既存）"
     fi
 
     success "全プラグイン準備完了"
