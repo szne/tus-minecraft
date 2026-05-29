@@ -15,8 +15,9 @@ Paper 1.21.x / Docker 構成のサーバー運用手順書です。
 7. [Discord連携（DiscordSRV）](#7-discord連携discordsrv)
 8. [Bedrock接続（GeyserMC）](#8-bedrock接続geysermc)
 9. [ローマ字→日本語変換（JapanizeChat）](#9-ローマ字日本語変換japanizechat)
-10. [ホワイトリスト管理](#10-ホワイトリスト管理)
-11. [バックアップ](#11-バックアップ)
+10. [便利コマンド（EssentialsX）](#10-便利コマンドessentialsx)
+11. [ホワイトリスト管理](#11-ホワイトリスト管理)
+12. [バックアップ](#12-バックアップ)
 
 ---
 
@@ -138,6 +139,25 @@ curl -s https://api.mojang.com/users/profiles/minecraft/ユーザー名 | python
 ```
 /mv setspawn          # 今いる場所を現在のワールドのスポーンに設定
 ```
+
+### ワールド別テレポート権限（LuckPerms 連携）
+
+Multiverse-Core 5.x では `use-finer-teleport-permissions: true`（デフォルト有効）のとき、  
+ワールドごとに権限 `multiverse.teleport.self.w.<ワールド名>` でアクセスを制限できます。
+
+**サバイバル↔クリエイティブ間の移動のみ許可する例:**
+
+```
+# user グループに season2026 と campus ワールドのみ許可
+/lp group user permission set multiverse.teleport.self.w.season2026 true
+/lp group user permission set multiverse.teleport.self.w.campus true
+
+# ワイルドカードは与えない（ネザー・エンド・他ワールドには移動不可）
+# /lp group user permission set multiverse.teleport.self true  ← これはやらない
+```
+
+> **ポイント**: ネザー（`world_nether`）やエンド（`world_the_end`）の権限を付与しなければ、  
+> `/mvtp w:world_nether` しようとしても「権限がありません」になります。
 
 ### 資源ワールドのリセット手順
 
@@ -274,6 +294,82 @@ DiscordSRV は以下の形式でメッセージを転送します:
 
 ローマ字入力は JapanizeChat + JapanizeDiscordBridge により自動変換されます（→ [9章](#9-ローマ字日本語変換japanizechat)）。
 
+### Discord アカウント認証（アカウント連携）
+
+プレイヤーが Minecraft と Discord アカウントを紐づける手順です。  
+連携済みユーザーはホワイトリストに自動追加され、Discord ロールでゲーム内権限も自動同期されます。
+
+#### プレイヤー側の手順
+
+```
+1. Minecraft でゲームに参加
+2. /discord link  と入力
+3. 表示される 4桁のコード（例: 1234）をコピー
+4. Discord で Bot に DM: /link 1234
+5. 「Successfully linked!」が表示されれば完了
+```
+
+> **Bedrock プレイヤーも同じ手順**で連携できます（ドット付き名前 `.szkk` のまま）。
+
+#### 管理者側の設定（ホワイトリスト自動追加）
+
+`data/plugins/DiscordSRV/config.yml` を編集:
+
+```yaml
+# 認証済みユーザーを自動でホワイトリストに追加する
+MinecraftDiscordAccountLinkedWhitelistAdd: true
+
+# 連携解除したユーザーをホワイトリストから外す
+MinecraftDiscordAccountUnlinkedWhitelistRemove: true
+```
+
+設定後:
+```bash
+docker compose restart minecraft
+# または /discord reload（ゲーム内・コンソール）
+```
+
+#### 現在の連携状況を確認する（管理者）
+
+```
+/discord linked <Minecraftユーザー名>   # 連携済みDiscordアカウントを確認
+/discord unlink <Minecraftユーザー名>   # 連携を解除（OP）
+```
+
+---
+
+### Discord ニックネームの自動同期
+
+連携後、Discord のニックネームを **Minecraft 名に自動更新**できます。
+
+`data/plugins/DiscordSRV/config.yml` を編集:
+
+```yaml
+# ニックネーム同期を有効化
+NicknameSynchronizationEnabled: true
+
+# 同期する間隔（分）
+NicknameSynchronizationCycleTime: 60
+
+# ニックネームのフォーマット（%minecraftname% = Minecraft ユーザー名）
+NicknameSynchronizationFormat: "%minecraftname%"
+```
+
+**フォーマット例:**
+
+| 設定値 | Discord ニックネームの表示 |
+|:--|:--|
+| `%minecraftname%` | `TanakaKohei` |
+| `%minecraftname% [MC]` | `TanakaKohei [MC]` |
+| `[%minecraftname%]` | `[TanakaKohei]` |
+
+> **「Discord名（Minecraft名）」形式について**  
+> DiscordSRV 標準の `NicknameSynchronizationFormat` に使えるプレースホルダーは  
+> Minecraft 側の名前のみです（Discord 表示名は参照不可）。  
+> `田中太郎（TanakaKohei）` のような形式にするには PlaceholderAPI + DiscordSRV 拡張が必要になります。
+
+---
+
 ### Discord ロールでゲーム内権限を自動連携
 
 `data/plugins/DiscordSRV/synchronization.yml` を編集:
@@ -359,7 +455,102 @@ default-toggle-state: true
 
 ---
 
-## 10. ホワイトリスト管理
+## 10. 便利コマンド（EssentialsX）
+
+EssentialsX はホーム設定・ワープ・テレポート・経済など、サーバー運用に欠かせないコマンドを追加するプラグインです。
+
+### ホーム（個人拠点）
+
+```
+/sethome          # 現在地をホームに設定
+/sethome 名前      # 複数ホームに名前をつけて設定（OP・権限が必要）
+/home             # ホームにテレポート
+/home 名前         # 指定ホームにテレポート
+/delhome 名前      # ホームを削除
+/homes            # ホーム一覧
+```
+
+### ワープ（管理者が設定する公共の拠点）
+
+```
+/setwarp ワープ名         # 現在地をワープポイントに設定（OP）
+/warp ワープ名            # ワープポイントへ移動
+/warp                    # ワープ一覧を表示
+/delwarp ワープ名         # ワープポイントを削除（OP）
+```
+
+### テレポート
+
+```
+/tp プレイヤー名          # 指定プレイヤーの場所にテレポート（OP）
+/tpa プレイヤー名         # テレポートリクエストを送る
+/tpaccept                # テレポートリクエストを承認
+/tpdeny                  # テレポートリクエストを拒否
+/back                    # 直前の場所に戻る（死亡後も使える）
+/spawn                   # スポーン地点に戻る
+```
+
+### 情報・ユーティリティ
+
+```
+/afk                     # AFKモードのオン/オフ
+/msg プレイヤー名 内容     # プライベートメッセージ
+/r 内容                   # 直前のメッセージに返信
+/seen プレイヤー名         # 最終ログイン日時を確認（OP）
+/whois プレイヤー名        # プレイヤー情報（IP・接続回数など）（OP）
+/gamemode survival/creative 名前  # ゲームモード変更（OP）
+```
+
+### 経済（Economy）
+
+EssentialsX Economy を有効にするとコイン・取引システムが使えます（Vault 連携が必要）。
+
+```
+/balance              # 所持金を確認
+/pay プレイヤー名 金額  # プレイヤーに送金
+/eco give 名前 金額    # 管理者が直接付与（OP）
+/eco take 名前 金額    # 管理者が直接削除（OP）
+```
+
+### 管理者向けコマンド
+
+```
+/kick プレイヤー名 理由        # キック
+/ban プレイヤー名 理由         # BANする
+/unban プレイヤー名            # BAN解除
+/mute プレイヤー名             # チャット禁止
+/fly プレイヤー名              # フライトのオン/オフ
+/god プレイヤー名              # 無敵モードのオン/オフ
+/invsee プレイヤー名           # インベントリを見る
+/essentials reload             # 設定ファイルをリロード
+```
+
+### 設定のポイント
+
+`data/plugins/Essentials/config.yml` の主要設定:
+
+```yaml
+# チャットフォーマットは DiscordSRV / JapanizeChat と競合するため無効化推奨
+# EssentialsXChat プラグインを入れなければ自動的にチャット干渉なし
+
+# テレポートのクールダウン（秒）
+teleport-cooldown: 3
+
+# テレポート時にプレイヤーが動くとキャンセル
+teleport-safety: true
+
+# /back で死亡地点に戻れるようにする
+respawn-listener-priority: HIGH
+
+# ホームの最大数（デフォルト: 1）
+sethome-multiple:
+  default: 1
+  vip: 5
+```
+
+---
+
+## 11. ホワイトリスト管理
 
 ### オン/オフ
 
@@ -387,7 +578,7 @@ enforce-whitelist=true
 
 ---
 
-## 11. バックアップ
+## 12. バックアップ
 
 ### 手動バックアップ
 
@@ -424,6 +615,10 @@ docker compose up -d
 | 荒らしロールバック | `/co rollback user:名前 time:1h radius:50` |
 | 権限確認 | `/lp user 名前 permission info` |
 | グループ変更 | `/lp user 名前 parent set グループ名` |
+| ワールド別移動権限付与 | `/lp group user permission set multiverse.teleport.self.w.ワールド名 true` |
+| ホーム設定 | `/sethome` / `/home` |
+| ワープ設定 | `/setwarp 名前`（OP） / `/warp 名前` |
+| テレポートリクエスト | `/tpa 名前` → `/tpaccept` |
 | 日本語変換オン/オフ | `/jp toggle` |
 | Discord再読込 | `/discord reload` |
 | TPS確認 | `/tps` |

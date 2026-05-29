@@ -8,6 +8,8 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.net.URI;
@@ -38,6 +40,9 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
 
     private HttpClient httpClient;
 
+    /** Discord 認証済み（user グループ）のプレイヤーだけが持つ建築許可ノード */
+    private static final String BUILD_PERMISSION = "tus.build";
+
     @Override
     public void onEnable() {
         httpClient = HttpClient.newBuilder()
@@ -45,6 +50,29 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
                 .build();
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("JapanizeDiscordBridge 有効化 — ゲーム内・Discord 両方に日本語変換を適用します");
+        getLogger().info("BuildGuard 有効化 — tus.build 権限のないプレイヤーの建築をブロックします");
+    }
+
+    // ---------------------------------------------------------------
+    // BuildGuard: Discord 未認証プレイヤーの建築・破壊をブロック
+    // ---------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (!event.getPlayer().hasPermission(BUILD_PERMISSION)) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(
+                Component.text("§e/discord link §fで Discord 認証を行うと建築できるようになります"));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (!event.getPlayer().hasPermission(BUILD_PERMISSION)) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(
+                Component.text("§e/discord link §fで Discord 認証を行うと建築できるようになります"));
+        }
     }
 
     /**
