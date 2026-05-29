@@ -300,6 +300,20 @@ inject_world_config() {
     fi
 }
 
+# ── RCON パスワードの注入 ─────────────────────────────────────
+# RCON_PASSWORD 環境変数を server.properties に反映
+# （scheduled-restart.sh がコマンド送信に使用）
+inject_rcon_config() {
+    local props="${SERVER_DIR}/server.properties"
+    if [ ! -f "${props}" ]; then return; fi
+    if [ -n "${RCON_PASSWORD:-}" ] && [ "${RCON_PASSWORD}" != "changeme" ]; then
+        sed -i "s/^rcon.password=.*/rcon.password=${RCON_PASSWORD}/" "${props}"
+        info "  RCON: パスワードを注入しました"
+    else
+        warn "  RCON: RCON_PASSWORD が未設定または初期値です。.env で設定してください"
+    fi
+}
+
 # ── DiscordSRV 設定の自動注入 ────────────────────────────────
 # サーバー初回起動後に DiscordSRV/config.yml が生成されたタイミングで反映
 # 対象: DISCORD_BOT_TOKEN / DISCORD_CHANNEL_ID
@@ -367,6 +381,9 @@ copy_bundled_plugins
 
 # デフォルトワールド設定注入
 inject_world_config
+
+# RCON パスワード注入
+inject_rcon_config
 
 # DiscordSRV 設定注入（BotToken・チャンネルID）
 inject_discord_config

@@ -39,6 +39,8 @@ services:
       # デフォルトワールド名（省略時は world）
       # mv regen などで world をアンロードしたい場合に別ワールド名を指定
       DEFAULT_WORLD: ${DEFAULT_WORLD:-world}
+      # RCON パスワード（scheduled-restart.sh からコマンドを送るために使用）
+      RCON_PASSWORD: ${RCON_PASSWORD:-changeme}
       # ログのバナー表示名を変更したい場合は .env に追加（省略可）
       # SERVER_DISPLAY_NAME: "TUSマイクラサークル"
 
