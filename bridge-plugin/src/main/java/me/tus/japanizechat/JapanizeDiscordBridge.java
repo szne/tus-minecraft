@@ -5,11 +5,14 @@ import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.net.URI;
@@ -19,6 +22,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * JapanizeDiscordBridge
@@ -35,8 +43,18 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
             "https://inputtools.google.com/request?text=%s&itc=ja-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=demopage";
 
     // ASCII ローマ字と基本的な記号のみを対象とする（日本語はスキップ）
-    private static final java.util.regex.Pattern ROMAJI_PATTERN =
-            java.util.regex.Pattern.compile("^[\\x20-\\x7E]+$");
+    private static final Pattern ROMAJI_PATTERN =
+            Pattern.compile("^[\\x20-\\x7E]+$");
+
+    // /msg, /tell, /w, /m + 相手名 + スペース + メッセージ本文
+    private static final Pattern MSG_CMD_PATTERN =
+            Pattern.compile("^/(msg|tell|w|m)\\s+(\\S+)\\s+(.+)$", Pattern.CASE_INSENSITIVE);
+    // /r, /reply + スペース + メッセージ本文（相手なし）
+    private static final Pattern REPLY_CMD_PATTERN =
+            Pattern.compile("^/(r|reply)\\s+(.+)$", Pattern.CASE_INSENSITIVE);
+
+    /** 変換処理中のプレイヤー（無限ループ防止） */
+    private final Set<UUID> processing = Collections.synchronizedSet(new HashSet<>());
 
     private HttpClient httpClient;
 
@@ -49,7 +67,7 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("JapanizeDiscordBridge 有効化 — ゲーム内・Discord 両方に日本語変換を適用します");
+        getLogger().info("JapanizeDiscordBridge 有効化 — ゲーム内・Discord・/msg 全てに日本語変換を適用します");
         getLogger().info("BuildGuard 有効化 — tus.build 権限のないプレイヤーの建築をブロックします");
     }
 
@@ -73,6 +91,72 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
             event.getPlayer().sendMessage(
                 Component.text("§e/discord link §fで Discord 認証を行うと建築できるようになります"));
         }
+    }
+
+    // ---------------------------------------------------------------
+    // PrivateMsgConverter: /msg /tell /w /m /r /reply でも日本語変換
+    // ---------------------------------------------------------------
+
+    /**
+     * PlayerCommandPreprocessEvent でプライベートメッセージコマンドを横取りし、
+     * メッセージ部分をローマ字→日本語変換して再ディスパッチする。
+     *
+     * 処理フロー:
+     *  1. コマンドが /msg /tell /w /m /r /reply か確認
+     *  2. 対象外・日本語含む・変換中 → スルー
+     *  3. イベントをキャンセルし、非同期スレッドで Google API 変換
+     *  4. メインスレッドに戻り変換済みコマンドを performCommand で再実行
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPrivateMessage(PlayerCommandPreprocessEvent event) {
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        // 変換中の再帰呼び出しを防ぐ
+        if (processing.contains(uuid)) return;
+
+        String raw = event.getMessage();
+
+        java.util.regex.Matcher msgMatcher   = MSG_CMD_PATTERN.matcher(raw);
+        java.util.regex.Matcher replyMatcher = REPLY_CMD_PATTERN.matcher(raw);
+
+        final String baseCmd;   // 変換前コマンド（/msg player ）or（/r ）
+        final String msgText;   // 変換対象のメッセージ部分
+
+        if (msgMatcher.matches()) {
+            // /msg <player> <message>
+            baseCmd = "/" + msgMatcher.group(1) + " " + msgMatcher.group(2) + " ";
+            msgText = msgMatcher.group(3);
+        } else if (replyMatcher.matches()) {
+            // /r <message>
+            baseCmd = "/" + replyMatcher.group(1) + " ";
+            msgText = replyMatcher.group(2);
+        } else {
+            return;
+        }
+
+        // ASCII ローマ字でなければ変換不要
+        if (!ROMAJI_PATTERN.matcher(msgText).matches()) return;
+
+        // メインスレッドをブロックしないよう非同期で変換
+        event.setCancelled(true);
+        processing.add(uuid);
+
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            String japanese = convertToJapanese(msgText);
+            String finalMsg = (japanese != null && !japanese.isEmpty() && !japanese.equals(msgText))
+                    ? msgText + " (" + japanese + ")"
+                    : msgText;
+
+            // コマンド再実行はメインスレッドで
+            Bukkit.getScheduler().runTask(this, () -> {
+                try {
+                    player.performCommand((baseCmd + finalMsg).replaceFirst("^/", ""));
+                } finally {
+                    processing.remove(uuid);
+                }
+            });
+        });
     }
 
     /**
