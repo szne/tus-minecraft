@@ -166,21 +166,72 @@ download_plugins() {
 
     # ⑦ ViaVersion — GeyserMC が要求する Java バージョン互換レイヤー
     if [ ! -f "${PLUGINS_DIR}/ViaVersion.jar" ]; then
-        info "  [7/8] ViaVersion (GeyserMC 互換)..."
+        info "  [7/9] ViaVersion (GeyserMC 互換)..."
         download_github_latest \
             "ViaVersion/ViaVersion" \
             "${PLUGINS_DIR}/ViaVersion.jar" \
             "ViaVersion-"
     else
-        info "  [7/8] ViaVersion        → スキップ（既存）"
+        info "  [7/9] ViaVersion        → スキップ（既存）"
     fi
 
     # ⑧ JapanizeChat — ローマ字入力をリアルタイムで日本語に変換
     if [ ! -f "${PLUGINS_DIR}/JapanizeChat.jar" ]; then
-        info "  [8/8] JapanizeChat (ローマ字→日本語)..."
+        info "  [8/9] JapanizeChat (ローマ字→日本語)..."
         download_modrinth_latest "japanizechat" "${PLUGINS_DIR}/JapanizeChat.jar"
     else
-        info "  [8/8] JapanizeChat      → スキップ（既存）"
+        info "  [8/9] JapanizeChat      → スキップ（既存）"
+    fi
+
+    # ⑨ Vault — DiscordSRV が LuckPerms と連携するための権限 API ブリッジ
+    if [ ! -f "${PLUGINS_DIR}/Vault.jar" ]; then
+        info "  [9/10] Vault (権限APIブリッジ)..."
+        download_github_latest \
+            "MilkBowl/Vault" \
+            "${PLUGINS_DIR}/Vault.jar" \
+            "Vault.jar"
+    else
+        info "  [9/10] Vault            → スキップ（既存）"
+    fi
+
+    # ⑩ EssentialsX — ホーム・テレポート・キット等の基本コマンド群（Chatは除外）
+    if [ ! -f "${PLUGINS_DIR}/EssentialsX.jar" ]; then
+        info "  [10/12] EssentialsX (基本コマンド)..."
+        download_github_latest \
+            "EssentialsX/Essentials" \
+            "${PLUGINS_DIR}/EssentialsX.jar" \
+            "EssentialsX-"
+    else
+        info "  [10/12] EssentialsX     → スキップ（既存）"
+    fi
+
+    # ⑪ Multiverse-Inventories — ワールド間インベントリ分離
+    # season2026 ↔ campus 等でアイテム持ち込みを防ぐため必須
+    if [ ! -f "${PLUGINS_DIR}/Multiverse-Inventories.jar" ]; then
+        info "  [11/12] Multiverse-Inventories (インベントリ分離)..."
+        download_modrinth_latest "multiverse-inventories" "${PLUGINS_DIR}/Multiverse-Inventories.jar" "bukkit"
+    else
+        info "  [11/12] Multiverse-Inventories → スキップ（既存）"
+    fi
+
+    # ⑫ MyWorlds — ネザー・エンドポータルのワールド振り分け
+    # Multiverse-Core 5.x はポータルルーティングを行わないため別途必要
+    # bergerhealer CI からビルド済みアーティファクトを取得
+    if [ ! -f "${PLUGINS_DIR}/MyWorlds.jar" ]; then
+        info "  [12/12] MyWorlds (ポータルルーティング)..."
+        local mw_api="https://ci.mg-dev.eu/job/MyWorlds/lastSuccessfulBuild/api/json"
+        local mw_artifact
+        mw_artifact=$(curl -fsSL "${mw_api}" \
+            | jq -r '.artifacts[0].relativePath')
+        if [ -z "${mw_artifact}" ] || [ "${mw_artifact}" = "null" ]; then
+            error "MyWorlds の CI URL を取得できませんでした"
+        else
+            curl -fSL --progress-bar \
+                -o "${PLUGINS_DIR}/MyWorlds.jar" \
+                "https://ci.mg-dev.eu/job/MyWorlds/lastSuccessfulBuild/artifact/${mw_artifact}"
+        fi
+    else
+        info "  [12/12] MyWorlds        → スキップ（既存）"
     fi
 
     success "全プラグイン準備完了"
@@ -275,7 +326,7 @@ inject_discord_config() {
     # Webhook モードでプレイヤーのスキンアイコンを Discord に表示
     # AvatarUrl に crafatar.com を設定し、Webhook 配信を有効化
     sed -i "s/^Experiment_WebhookChatMessageDelivery: false/Experiment_WebhookChatMessageDelivery: true/" "${config}"
-    sed -i "s|^AvatarUrl: .*|AvatarUrl: \"https://crafatar.com/avatars/{uuid}?size=128\&overlay\"|" "${config}"
+    sed -i "s|^AvatarUrl: .*|AvatarUrl: \"https://mc-heads.net/avatar/{uuid}/128\"|" "${config}"
     info "  DiscordSRV: Webhook アバター表示を有効化しました"
 
     # JapanizeChat は Paper 新式の AsyncChatEvent を使用するため、
