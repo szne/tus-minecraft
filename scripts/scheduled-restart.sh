@@ -149,23 +149,44 @@ wait_for_rcon() {
 if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
     log "RCON 接続待機中（最大 300 秒）..."
     if wait_for_rcon; then
-        log "RCON 接続成功。ポータルリンクを設定中..."
+        log "RCON 接続成功。"
 
-        # MyWorlds ポータルリンク設定
+        # ── 一回限りの移行処理: test → 2026end ───────────────
+        # test ディレクトリが残っていて 2026end がない場合のみ実行
+        if [ -d "${DATA_DIR}/test" ] && [ ! -d "${DATA_DIR}/2026end" ]; then
+            log "test → 2026end のリネーム処理を実行中..."
+            cp -r "${DATA_DIR}/test" "${DATA_DIR}/2026end"
+            rm -f "${DATA_DIR}/2026end/uid.dat"
+            sleep 2
+            rcon_cmd "mv unload test"
+            sleep 8
+            rcon_cmd "mv remove test"
+            sleep 2
+            rcon_cmd "mv import 2026end normal"
+            sleep 8
+            rm -rf "${DATA_DIR}/test"
+            rm -rf "${DATA_DIR}/test_nether"
+            rm -rf "${DATA_DIR}/test_the_end"
+            rcon_cmd "mvinv reload"
+            log "✓ test → 2026end リネーム完了"
+        fi
+
+        # ── MyWorlds ポータルリンク設定 ──────────────────────
         rcon_cmd "myworlds world season2026 setnetherworld season2026_nether"
         rcon_cmd "myworlds world season2026 setendworld season2026_the_end"
-        rcon_cmd "myworlds world test setnetherworld test_nether"
-        rcon_cmd "myworlds world test setendworld test_the_end"
+        rcon_cmd "myworlds world 2026end setnetherworld 2026end_nether"
+        rcon_cmd "myworlds world 2026end setendworld 2026end_the_end"
         rcon_cmd "myworlds world 2026end2 setnetherworld 2026end2_nether"
         rcon_cmd "myworlds world 2026end2 setendworld 2026end2_the_end"
         log "✓ MyWorlds ポータルリンク設定完了"
 
-        # スリープ投票（50%）
+        # ── スリープ投票（50%）───────────────────────────────
         rcon_cmd "execute in minecraft:season2026 run gamerule playersSleepingPercentage 50"
-        rcon_cmd "execute in minecraft:test run gamerule playersSleepingPercentage 50"
+        rcon_cmd "execute in minecraft:2026end run gamerule playersSleepingPercentage 50"
+        rcon_cmd "execute in minecraft:2026end2 run gamerule playersSleepingPercentage 50"
         log "✓ playersSleepingPercentage 設定完了"
 
-        # Multiverse デバッグモード無効化
+        # ── Multiverse デバッグモード無効化 ──────────────────
         rcon_cmd "mv config global-debug 0"
         rcon_cmd "mv reload"
         log "✓ Multiverse デバッグモード無効化完了"
