@@ -306,9 +306,11 @@ inject_world_config() {
 inject_rcon_config() {
     local props="${SERVER_DIR}/server.properties"
     if [ ! -f "${props}" ]; then return; fi
+    # enable-rcon を常に true に設定
+    sed -i "s/^enable-rcon=.*/enable-rcon=true/" "${props}"
     if [ -n "${RCON_PASSWORD:-}" ] && [ "${RCON_PASSWORD}" != "changeme" ]; then
         sed -i "s/^rcon.password=.*/rcon.password=${RCON_PASSWORD}/" "${props}"
-        info "  RCON: パスワードを注入しました"
+        info "  RCON: 有効化・パスワードを注入しました"
     else
         warn "  RCON: RCON_PASSWORD が未設定または初期値です。.env で設定してください"
     fi
