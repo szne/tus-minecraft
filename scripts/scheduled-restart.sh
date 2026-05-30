@@ -118,7 +118,61 @@ ls -t "${BACKUP_DIR}"/backup-*.tar.gz 2>/dev/null \
 # ── 再起動 ───────────────────────────────────────────────
 log "docker restart ${CONTAINER} を実行..."
 docker restart "${CONTAINER}"
-log "再起動コマンド完了。"
+log "再起動コマンド完了。サーバー起動を待機中..."
+
+# ── 起動後セットアップ（RCON 経由）────────────────────────
+# .env から RCON_PASSWORD を読み込む
+ENV_FILE="${HOME}/Container/tus-minecraft/.env"
+RCON_PASS=""
+if [ -f "${ENV_FILE}" ]; then
+    RCON_PASS=$(grep '^RCON_PASSWORD=' "${ENV_FILE}" | cut -d= -f2-)
+fi
+
+MCRCON="${HOME}/bin/mcrcon"
+
+rcon_cmd() {
+    "${MCRCON}" -H localhost -P 25575 -p "${RCON_PASS}" "$1" 2>/dev/null
+}
+
+wait_for_rcon() {
+    local attempts=0
+    while [ ${attempts} -lt 30 ]; do
+        if rcon_cmd "list" &>/dev/null; then
+            return 0
+        fi
+        attempts=$((attempts + 1))
+        sleep 10
+    done
+    return 1
+}
+
+if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
+    log "RCON 接続待機中（最大 300 秒）..."
+    if wait_for_rcon; then
+        log "RCON 接続成功。ポータルリンクを設定中..."
+
+        # MyWorlds ポータルリンク設定
+        rcon_cmd "myworlds world season2026 setnetherworld season2026_nether"
+        rcon_cmd "myworlds world season2026 setendworld season2026_the_end"
+        rcon_cmd "myworlds world test setnetherworld test_nether"
+        rcon_cmd "myworlds world test setendworld test_the_end"
+        log "✓ MyWorlds ポータルリンク設定完了"
+
+        # スリープ投票（50%）
+        rcon_cmd "execute in minecraft:season2026 run gamerule playersSleepingPercentage 50"
+        rcon_cmd "execute in minecraft:test run gamerule playersSleepingPercentage 50"
+        log "✓ playersSleepingPercentage 設定完了"
+
+        # Multiverse デバッグモード無効化
+        rcon_cmd "mv config global-debug 0"
+        rcon_cmd "mv reload"
+        log "✓ Multiverse デバッグモード無効化完了"
+    else
+        log "WARNING: RCON が起動しませんでした。手動で setup-worlds.sh を実行してください。"
+    fi
+else
+    log "WARNING: RCON_PASSWORD 未設定のためセットアップをスキップ"
+fi
 
 log "========================================"
 log " 定期再起動シーケンス終了"
