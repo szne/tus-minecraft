@@ -156,6 +156,8 @@ if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
         rcon_cmd "myworlds world season2026 setendworld season2026_the_end"
         rcon_cmd "myworlds world test setnetherworld test_nether"
         rcon_cmd "myworlds world test setendworld test_the_end"
+        rcon_cmd "myworlds world 2026end2 setnetherworld 2026end2_nether"
+        rcon_cmd "myworlds world 2026end2 setendworld 2026end2_the_end"
         log "✓ MyWorlds ポータルリンク設定完了"
 
         # スリープ投票（50%）
