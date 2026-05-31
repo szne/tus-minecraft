@@ -4,10 +4,10 @@
 # 手動でサーバーを再起動したいときに使用
 #
 # 実行フロー:
-#   0:00  - 1分前警告
+#   0:00  - 1分前警告（RCON経由で全ワールドに配信）
 #   0:50  - 10秒前カウントダウン
 #   1:00  - バックアップ → 再起動
-#   起動後 - RCON 経由で自動セットアップ（MyWorlds, gamerule など）
+#   起動後 - RCON 経由で自動セットアップ（MVNP, gamerule など）
 # ============================================================
 set -euo pipefail
 
@@ -29,19 +29,34 @@ is_running() {
     docker inspect --format='{{.State.Running}}' "${CONTAINER}" 2>/dev/null | grep -q true
 }
 
-mc_cmd() {
-    local cmd="$1"
-    is_running || return 0
-    expect -c "
-        log_user 0
-        set timeout 8
-        spawn docker attach --detach-keys=ctrl-p,ctrl-q ${CONTAINER}
-        sleep 0.5
-        send \"${cmd}\r\"
-        sleep 1.5
-        send \x10\x11
-        expect eof
-    " 2>/dev/null || true
+# ── RCON セットアップ ─────────────────────────────────────
+ENV_FILE="${HOME}/Container/tus-minecraft/.env"
+RCON_PASS=""
+if [ -f "${ENV_FILE}" ]; then
+    RCON_PASS=$(grep '^RCON_PASSWORD=' "${ENV_FILE}" | cut -d= -f2-)
+fi
+MCRCON="${HOME}/bin/mcrcon"
+
+rcon_cmd() {
+    "${MCRCON}" -H localhost -P 25575 -p "${RCON_PASS}" "$1" 2>/dev/null
+}
+
+rcon_broadcast() {
+    if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
+        rcon_cmd "broadcast $1" || true
+    fi
+}
+
+wait_for_rcon() {
+    local attempts=0
+    while [ ${attempts} -lt 30 ]; do
+        if rcon_cmd "list" &>/dev/null; then
+            return 0
+        fi
+        attempts=$((attempts + 1))
+        sleep 10
+    done
+    return 1
 }
 
 log "========================================"
@@ -53,32 +68,21 @@ if ! is_running; then
     exit 0
 fi
 
-# ── 1分前警告 ─────────────────────────────────────────────
+# ── 1分前警告（RCON 経由で全ワールドに配信）──────────────
 log "T-1分 警告送信..."
-mc_cmd "broadcast &c&l[メンテナンス]&r &f1分後にサーバーを再起動します。安全な場所へ移動してください。"
+rcon_broadcast "&c&l[メンテナンス]&r &f1分後にサーバーを再起動します。安全な場所へ移動してください。"
 sleep 50
 
-# ── 10秒前カウントダウン ──────────────────────────────────
 log "T-10秒 カウントダウン送信..."
-is_running && expect -c "
-    log_user 0
-    set timeout 30
-    spawn docker attach --detach-keys=ctrl-p,ctrl-q ${CONTAINER}
-    sleep 0.5
-    send \"broadcast &c&l[メンテナンス]&r &c10秒後に再起動します...\r\"
-    sleep 5
-    send \"broadcast &c&l[メンテナンス]&r &c5秒前...\r\"
-    sleep 3
-    send \"broadcast &c&l[メンテナンス]&r &c2秒前...\r\"
-    sleep 1
-    send \"broadcast &c&l[メンテナンス]&r &c1秒前...\r\"
-    sleep 1
-    send \"broadcast &c&l[メンテナンス]&r &c再起動します。すぐに再接続できます！\r\"
-    sleep 1
-    send \x10\x11
-    expect eof
-" 2>/dev/null || true
-
+rcon_broadcast "&c&l[メンテナンス]&r &c10秒後に再起動します..."
+sleep 5
+rcon_broadcast "&c&l[メンテナンス]&r &c5秒前..."
+sleep 3
+rcon_broadcast "&c&l[メンテナンス]&r &c2秒前..."
+sleep 1
+rcon_broadcast "&c&l[メンテナンス]&r &c1秒前..."
+sleep 1
+rcon_broadcast "&c&l[メンテナンス]&r &f再起動します。すぐに再接続できます！"
 sleep 2
 
 # ── バックアップ ──────────────────────────────────────────
@@ -103,30 +107,6 @@ docker restart "${CONTAINER}"
 log "再起動コマンド完了。サーバー起動を待機中..."
 
 # ── 起動後セットアップ（RCON 経由）────────────────────────
-ENV_FILE="${HOME}/Container/tus-minecraft/.env"
-RCON_PASS=""
-if [ -f "${ENV_FILE}" ]; then
-    RCON_PASS=$(grep '^RCON_PASSWORD=' "${ENV_FILE}" | cut -d= -f2-)
-fi
-
-MCRCON="${HOME}/bin/mcrcon"
-
-rcon_cmd() {
-    "${MCRCON}" -H localhost -P 25575 -p "${RCON_PASS}" "$1" 2>/dev/null
-}
-
-wait_for_rcon() {
-    local attempts=0
-    while [ ${attempts} -lt 30 ]; do
-        if rcon_cmd "list" &>/dev/null; then
-            return 0
-        fi
-        attempts=$((attempts + 1))
-        sleep 10
-    done
-    return 1
-}
-
 if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
     log "RCON 接続待機中（最大 300 秒）..."
     if wait_for_rcon; then
