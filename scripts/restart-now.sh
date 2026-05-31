@@ -102,8 +102,11 @@ ls -t "${BACKUP_DIR}"/backup-*.tar.gz 2>/dev/null \
     | xargs rm -f 2>/dev/null || true
 
 # ── 再起動 ───────────────────────────────────────────────
-log "docker restart ${CONTAINER} を実行..."
-docker restart "${CONTAINER}"
+# docker compose up -d --force-recreate を使うことで
+# .env の変更（DEFAULT_WORLD 等）を毎回確実に反映する
+COMPOSE_DIR="${HOME}/Container/tus-minecraft"
+log "docker compose up -d --force-recreate minecraft を実行..."
+(cd "${COMPOSE_DIR}" && docker compose up -d --force-recreate minecraft)
 log "再起動コマンド完了。サーバー起動を待機中..."
 
 # ── 起動後セットアップ（RCON 経由）────────────────────────
