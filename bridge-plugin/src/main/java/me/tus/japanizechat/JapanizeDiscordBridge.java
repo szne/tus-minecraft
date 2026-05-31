@@ -1,10 +1,11 @@
 package me.tus.japanizechat;
 
-import io.papermc.paper.chat.ChatRenderer;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import net.milkbowl.vault.chat.Chat;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -13,6 +14,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.net.URI;
@@ -31,25 +33,26 @@ import java.util.regex.Pattern;
 /**
  * JapanizeDiscordBridge
  *
- * Google Input Tools API でローマ字→日本語変換を行い、
- * ゲーム内表示と Discord 送信の両方に同じ変換結果を適用する。
+ * - ローマ字→日本語変換（Google Input Tools API）
+ * - Vault 経由で LuckPerms プレフィックスをチャットに表示
+ * - Discord 送信にも変換結果を反映
+ * - BuildGuard: tus.build 権限のないプレイヤーの建築ブロック
  *
- * ゲーム内: 「ローマ字 (日本語)」形式で表示（JapanizeChat の renderer を上書き）
- * Discord : 「ローマ字 (日本語)」形式で DiscordSRV に渡す
+ * チャット表示形式: [プレフィックス] 名前 » メッセージ (日本語変換)
  */
 public final class JapanizeDiscordBridge extends JavaPlugin implements Listener {
 
     private static final String GOOGLE_API_URL =
             "https://inputtools.google.com/request?text=%s&itc=ja-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=demopage";
 
-    // ASCII ローマ字と基本的な記号のみを対象とする（日本語はスキップ）
+    /** ASCII ローマ字と基本的な記号のみを変換対象にする */
     private static final Pattern ROMAJI_PATTERN =
             Pattern.compile("^[\\x20-\\x7E]+$");
 
-    // /msg, /tell, /w, /m + 相手名 + スペース + メッセージ本文
+    /** /msg, /tell, /w, /m <相手> <メッセージ> */
     private static final Pattern MSG_CMD_PATTERN =
             Pattern.compile("^/(msg|tell|w|m)\\s+(\\S+)\\s+(.+)$", Pattern.CASE_INSENSITIVE);
-    // /r, /reply + スペース + メッセージ本文（相手なし）
+    /** /r, /reply <メッセージ> */
     private static final Pattern REPLY_CMD_PATTERN =
             Pattern.compile("^/(r|reply)\\s+(.+)$", Pattern.CASE_INSENSITIVE);
 
@@ -58,7 +61,10 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
 
     private HttpClient httpClient;
 
-    /** Discord 認証済み（user グループ）のプレイヤーだけが持つ建築許可ノード */
+    /** Vault Chat サービス（プレフィックス取得） */
+    private Chat vaultChat = null;
+
+    /** Discord 認証済みプレイヤーだけが持つ建築許可ノード */
     private static final String BUILD_PERMISSION = "tus.build";
 
     @Override
@@ -66,6 +72,21 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
         httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
+
+        // Vault Chat サービスを取得
+        if (getServer().getPluginManager().getPlugin("Vault") != null) {
+            RegisteredServiceProvider<Chat> rsp =
+                    getServer().getServicesManager().getRegistration(Chat.class);
+            if (rsp != null) {
+                vaultChat = rsp.getProvider();
+                getLogger().info("Vault Chat サービス取得成功 — チャットプレフィックスを有効化");
+            } else {
+                getLogger().warning("Vault Chat サービスが見つかりません（LuckPerms が起動しているか確認）");
+            }
+        } else {
+            getLogger().warning("Vault が見つかりません — プレフィックスなしで動作します");
+        }
+
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("JapanizeDiscordBridge 有効化 — ゲーム内・Discord・/msg 全てに日本語変換を適用します");
         getLogger().info("BuildGuard 有効化 — tus.build 権限のないプレイヤーの建築をブロックします");
@@ -97,48 +118,32 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
     // PrivateMsgConverter: /msg /tell /w /m /r /reply でも日本語変換
     // ---------------------------------------------------------------
 
-    /**
-     * PlayerCommandPreprocessEvent でプライベートメッセージコマンドを横取りし、
-     * メッセージ部分をローマ字→日本語変換して再ディスパッチする。
-     *
-     * 処理フロー:
-     *  1. コマンドが /msg /tell /w /m /r /reply か確認
-     *  2. 対象外・日本語含む・変換中 → スルー
-     *  3. イベントをキャンセルし、非同期スレッドで Google API 変換
-     *  4. メインスレッドに戻り変換済みコマンドを performCommand で再実行
-     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPrivateMessage(PlayerCommandPreprocessEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        // 変換中の再帰呼び出しを防ぐ
         if (processing.contains(uuid)) return;
 
         String raw = event.getMessage();
-
         java.util.regex.Matcher msgMatcher   = MSG_CMD_PATTERN.matcher(raw);
         java.util.regex.Matcher replyMatcher = REPLY_CMD_PATTERN.matcher(raw);
 
-        final String baseCmd;   // 変換前コマンド（/msg player ）or（/r ）
-        final String msgText;   // 変換対象のメッセージ部分
+        final String baseCmd;
+        final String msgText;
 
         if (msgMatcher.matches()) {
-            // /msg <player> <message>
             baseCmd = "/" + msgMatcher.group(1) + " " + msgMatcher.group(2) + " ";
             msgText = msgMatcher.group(3);
         } else if (replyMatcher.matches()) {
-            // /r <message>
             baseCmd = "/" + replyMatcher.group(1) + " ";
             msgText = replyMatcher.group(2);
         } else {
             return;
         }
 
-        // ASCII ローマ字でなければ変換不要
         if (!ROMAJI_PATTERN.matcher(msgText).matches()) return;
 
-        // メインスレッドをブロックしないよう非同期で変換
         event.setCancelled(true);
         processing.add(uuid);
 
@@ -148,7 +153,6 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
                     ? msgText + " (" + japanese + ")"
                     : msgText;
 
-            // コマンド再実行はメインスレッドで
             Bukkit.getScheduler().runTask(this, () -> {
                 try {
                     player.performCommand((baseCmd + finalMsg).replaceFirst("^/", ""));
@@ -159,57 +163,76 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
         });
     }
 
+    // ---------------------------------------------------------------
+    // ChatFormatter: プレフィックス表示 + ローマ字→日本語変換
+    // ---------------------------------------------------------------
+
     /**
      * MONITOR 優先度で AsyncChatEvent を処理。
-     * loadbefore: [DiscordSRV] により DiscordSRV のリスナーより先に呼ばれる。
      *
-     * 処理:
-     * 1. メッセージが ASCII ローマ字か確認
-     * 2. Google Input Tools API で日本語に変換
-     * 3. event.renderer() を上書き → ゲーム内も当プラグインの変換結果を表示
-     * 4. event.message() を更新 → Discord にも同じ変換結果が届く
+     * 全メッセージ共通:
+     *   [プレフィックス] 名前 » メッセージ
+     *
+     * ローマ字入力の場合のみ追加:
+     *   [プレフィックス] 名前 » ローマ字 (日本語)
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChat(AsyncChatEvent event) {
         String romaji = PlainTextComponentSerializer.plainText()
                 .serialize(event.message());
 
-        // 空メッセージ・日本語含む場合はスキップ
-        if (romaji.isBlank() || !ROMAJI_PATTERN.matcher(romaji).matches()) {
-            return;
-        }
+        // ローマ字変換が可能な場合
+        if (!romaji.isBlank() && ROMAJI_PATTERN.matcher(romaji).matches()) {
+            String japanese = convertToJapanese(romaji);
+            if (japanese != null && !japanese.isEmpty() && !japanese.equals(romaji)) {
+                final Component romajiComponent = event.message();
+                final Component japaneseAnnotation = Component.text(" (" + japanese + ")")
+                        .color(NamedTextColor.GRAY);
 
-        String japanese = convertToJapanese(romaji);
-        if (japanese == null || japanese.isEmpty() || japanese.equals(romaji)) {
-            return;
-        }
-
-        // ゲーム内表示用に元のローマ字 Component を保存
-        Component romajiComponent = event.message();
-
-        // ゲーム内: JapanizeChat の renderer を上書きして当プラグインの変換結果を使用
-        // 「ローマ字 (日本語)」形式で表示（日本語部分はグレー）
-        Component japaneseAnnotation = Component.text(" (" + japanese + ")")
-                .color(NamedTextColor.GRAY);
-        event.renderer((source, displayName, message, viewer) ->
-                ChatRenderer.defaultRenderer()
-                        .render(source, displayName, romajiComponent, viewer)
+                // ゲーム内表示: [prefix] 名前 » ローマ字 (日本語)
+                event.renderer((source, displayName, message, viewer) ->
+                    buildPrefix(source)
+                        .append(displayName)
+                        .append(Component.text(" » "))
+                        .append(romajiComponent)
                         .append(japaneseAnnotation)
-        );
+                );
 
-        // Discord 用: event.message() に「ローマ字 (日本語)」を設定
-        event.message(Component.text(romaji + " (" + japanese + ")"));
+                // Discord 用: ローマ字 (日本語) を message に設定
+                event.message(Component.text(romaji + " (" + japanese + ")"));
+                return;
+            }
+        }
+
+        // 日本語直打ち・英語など変換なし: [prefix] 名前 » メッセージ
+        event.renderer((source, displayName, message, viewer) ->
+            buildPrefix(source)
+                .append(displayName)
+                .append(Component.text(" » "))
+                .append(message)
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------
+
+    /**
+     * Vault Chat からプレフィックスを取得して Adventure Component に変換する。
+     * Vault が未ロードの場合は空 Component を返す。
+     *
+     * LuckPerms は §a[スタッフ] のようなセクション記号付き文字列を返すので
+     * LegacyComponentSerializer.legacySection() でデシリアライズする。
+     */
+    private Component buildPrefix(Player player) {
+        if (vaultChat == null) return Component.empty();
+        String prefix = vaultChat.getPlayerPrefix(player);
+        if (prefix == null || prefix.isEmpty()) return Component.empty();
+        return LegacyComponentSerializer.legacySection().deserialize(prefix);
     }
 
     /**
      * Google Input Tools API でローマ字を日本語に変換する。
-     * 同期呼び出し（AsyncChatEvent のハンドラは非同期スレッド上で動くため Main Thread をブロックしない）。
-     *
-     * レスポンス例:
-     *   ["SUCCESS",[["konnichiha",[["こんにちは","こんにちは","こんにちわ"],...],null,null,{...}]]]
-     *
-     * @param romaji 変換元のローマ字文字列
-     * @return 変換後の日本語文字列。失敗時は null
      */
     private String convertToJapanese(String romaji) {
         try {
@@ -228,7 +251,6 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
 
             return parseGoogleResponse(resp.body());
         } catch (Exception e) {
-            // タイムアウトや接続エラーは無視してローマ字のままにする
             getLogger().fine("Google API 変換失敗 (無視): " + e.getMessage());
             return null;
         }
@@ -236,38 +258,23 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
 
     /**
      * Google Input Tools API のレスポンスを解析し、第一候補の日本語文字列を返す。
-     *
-     * 実際のレスポンス例:
-     *   ["SUCCESS",[["konnichiha",["こんにちは"],[],{"candidate_type":[0],"matched_length":[5]}]]]
-     *
-     * 構造:
-     *   1番目の文字列 = "SUCCESS"
-     *   2番目の文字列 = 入力テキスト "konnichiha"
-     *   3番目の文字列 = 第一候補 "こんにちは" ← これを返す
-     *
-     * ※ 括弧カウント方式だと ["candidate"],[],{"candidate_type":[0]...} の
-     *    空配列 [] が5番目の [ になり "candidate_type" が取れてしまうバグがあった
      */
     private String parseGoogleResponse(String json) {
         if (json == null || !json.contains("SUCCESS")) return null;
         try {
             int pos = 0;
-
-            // 1番目の文字列 "SUCCESS" をスキップ
             int open1 = json.indexOf('"', pos);
             if (open1 < 0) return null;
             int close1 = json.indexOf('"', open1 + 1);
             if (close1 < 0) return null;
             pos = close1 + 1;
 
-            // 2番目の文字列（入力テキスト）をスキップ
             int open2 = json.indexOf('"', pos);
             if (open2 < 0) return null;
             int close2 = json.indexOf('"', open2 + 1);
             if (close2 < 0) return null;
             pos = close2 + 1;
 
-            // 3番目の文字列 = 第一候補
             int open3 = json.indexOf('"', pos);
             if (open3 < 0) return null;
             int close3 = json.indexOf('"', open3 + 1);

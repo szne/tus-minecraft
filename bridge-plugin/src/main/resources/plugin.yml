@@ -9,4 +9,4 @@ authors: [TUS-MC]
 
 # DiscordSRV より先にロードすることで、同じ MONITOR 優先度のイベントを先に処理する
 loadbefore: [DiscordSRV]
-softdepend: [JapanizeChat, DiscordSRV]
+softdepend: [JapanizeChat, DiscordSRV, Vault, LuckPerms]
