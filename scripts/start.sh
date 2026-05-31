@@ -215,20 +215,10 @@ download_plugins() {
     fi
 
     # ⑫ BKCommonLib — MyWorlds の必須依存ライブラリ
-    # bergerhealer CI からビルド済みアーティファクトを取得
+    # Modrinth から安定版を取得
     if [ ! -f "${PLUGINS_DIR}/BKCommonLib.jar" ]; then
         info "  [12/13] BKCommonLib (MyWorlds依存)..."
-        local bk_api="https://ci.mg-dev.eu/job/BKCommonLib/lastSuccessfulBuild/api/json"
-        local bk_artifact
-        bk_artifact=$(curl -fsSL "${bk_api}" \
-            | jq -r '.artifacts[0].relativePath')
-        if [ -z "${bk_artifact}" ] || [ "${bk_artifact}" = "null" ]; then
-            error "BKCommonLib の CI URL を取得できませんでした"
-        else
-            curl -fSL --progress-bar \
-                -o "${PLUGINS_DIR}/BKCommonLib.jar" \
-                "https://ci.mg-dev.eu/job/BKCommonLib/lastSuccessfulBuild/artifact/${bk_artifact}"
-        fi
+        download_modrinth_latest "bkcommonlib" "${PLUGINS_DIR}/BKCommonLib.jar"
     else
         info "  [12/13] BKCommonLib     → スキップ（既存）"
     fi
