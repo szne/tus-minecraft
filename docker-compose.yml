@@ -50,6 +50,10 @@ services:
     # mem_limit: 5g
     # memswap_limit: 5g
 
+    # Minecraft がワールドデータを保存しきれるよう十分な猶予を与える
+    # デフォルト10秒では大規模ワールドの保存が間に合わずアイテムが消えることがある
+    stop_grace_period: 60s
+
     logging:
       driver: "json-file"
       options:

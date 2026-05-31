@@ -113,6 +113,12 @@ ls -t "${BACKUP_DIR}"/backup-*.tar.gz 2>/dev/null \
     | xargs rm -f 2>/dev/null || true
 
 # ── 再起動 ───────────────────────────────────────────────
+# 再起動前に save-all でワールドデータを強制保存してアイテムロスを防ぐ
+if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
+    log "save-all 実行中..."
+    rcon_cmd "save-all" || true
+    sleep 3
+fi
 # docker compose up -d --force-recreate を使うことで
 # .env の変更（DEFAULT_WORLD 等）を毎回確実に反映する
 COMPOSE_DIR="${HOME}/Container/tus-minecraft"
