@@ -159,14 +159,9 @@ if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
             log "✓ test → 2026end リネーム完了"
         fi
 
-        # ── MyWorlds ポータルリンク設定 ──────────────────────
-        rcon_cmd "myworlds world season2026 setnetherworld season2026_nether"
-        rcon_cmd "myworlds world season2026 setendworld season2026_the_end"
-        rcon_cmd "myworlds world 2026end setnetherworld 2026end_nether"
-        rcon_cmd "myworlds world 2026end setendworld 2026end_the_end"
-        rcon_cmd "myworlds world 2026end2 setnetherworld 2026end2_nether"
-        rcon_cmd "myworlds world 2026end2 setendworld 2026end2_the_end"
-        log "✓ MyWorlds ポータルリンク設定完了"
+        # ── Multiverse-NetherPortals リロード ────────────────
+        rcon_cmd "mvnp reload"
+        log "✓ Multiverse-NetherPortals リロード完了"
 
         # ── スリープ投票（50%）───────────────────────────────
         rcon_cmd "execute in minecraft:season2026 run gamerule playersSleepingPercentage 50"

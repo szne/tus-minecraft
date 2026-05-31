@@ -214,33 +214,14 @@ download_plugins() {
         info "  [11/12] Multiverse-Inventories → スキップ（既存）"
     fi
 
-    # ⑫ BKCommonLib — MyWorlds の必須依存ライブラリ
-    # Modrinth から安定版を取得
-    if [ ! -f "${PLUGINS_DIR}/BKCommonLib.jar" ]; then
-        info "  [12/13] BKCommonLib (MyWorlds依存)..."
-        download_modrinth_latest "bkcommonlib" "${PLUGINS_DIR}/BKCommonLib.jar"
-    else
-        info "  [12/13] BKCommonLib     → スキップ（既存）"
-    fi
-
-    # ⑬ MyWorlds — ネザー・エンドポータルのワールド振り分け
+    # ⑫ Multiverse-NetherPortals — ネザー・エンドポータルのワールド振り分け
     # Multiverse-Core 5.x はポータルルーティングを行わないため別途必要
-    # bergerhealer CI からビルド済みアーティファクトを取得
-    if [ ! -f "${PLUGINS_DIR}/MyWorlds.jar" ]; then
-        info "  [13/13] MyWorlds (ポータルルーティング)..."
-        local mw_api="https://ci.mg-dev.eu/job/MyWorlds/lastSuccessfulBuild/api/json"
-        local mw_artifact
-        mw_artifact=$(curl -fsSL "${mw_api}" \
-            | jq -r '.artifacts[0].relativePath')
-        if [ -z "${mw_artifact}" ] || [ "${mw_artifact}" = "null" ]; then
-            error "MyWorlds の CI URL を取得できませんでした"
-        else
-            curl -fSL --progress-bar \
-                -o "${PLUGINS_DIR}/MyWorlds.jar" \
-                "https://ci.mg-dev.eu/job/MyWorlds/lastSuccessfulBuild/artifact/${mw_artifact}"
-        fi
+    # 命名規則（worldname_nether / worldname_the_end）に従ったワールドを自動リンク
+    if [ ! -f "${PLUGINS_DIR}/Multiverse-NetherPortals.jar" ]; then
+        info "  [12/12] Multiverse-NetherPortals (ポータルルーティング)..."
+        download_modrinth_latest "multiverse-netherportals" "${PLUGINS_DIR}/Multiverse-NetherPortals.jar"
     else
-        info "  [13/13] MyWorlds        → スキップ（既存）"
+        info "  [12/12] Multiverse-NetherPortals → スキップ（既存）"
     fi
 
     success "全プラグイン準備完了"
