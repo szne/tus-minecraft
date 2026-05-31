@@ -190,12 +190,16 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
                         .color(NamedTextColor.GRAY);
 
                 // ゲーム内表示: [prefix] 名前 » ローマ字 (日本語)
+                // NamedTextColor.WHITE のコンテナでラップしてプレフィックスの色が
+                // 名前・メッセージに継承されないようにする
                 event.renderer((source, displayName, message, viewer) ->
-                    buildPrefix(source)
-                        .append(displayName)
-                        .append(Component.text(" » "))
-                        .append(romajiComponent)
-                        .append(japaneseAnnotation)
+                    buildPrefix(source).append(
+                        Component.empty().color(NamedTextColor.WHITE)
+                            .append(displayName)
+                            .append(Component.text(" » "))
+                            .append(romajiComponent)
+                            .append(japaneseAnnotation)
+                    )
                 );
 
                 // Discord 用: ローマ字 (日本語) を message に設定
@@ -206,10 +210,12 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
 
         // 日本語直打ち・英語など変換なし: [prefix] 名前 » メッセージ
         event.renderer((source, displayName, message, viewer) ->
-            buildPrefix(source)
-                .append(displayName)
-                .append(Component.text(" » "))
-                .append(message)
+            buildPrefix(source).append(
+                Component.empty().color(NamedTextColor.WHITE)
+                    .append(displayName)
+                    .append(Component.text(" » "))
+                    .append(message)
+            )
         );
     }
 
