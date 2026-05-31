@@ -195,46 +195,34 @@ download_plugins() {
     fi
 
     # ⑩ EssentialsX — ホーム・テレポート・キット等の基本コマンド群
+    # ※ EssentialsXChat は入れない（JapanizeDiscordBridge がプレフィックス付きレンダラーを担当）
     if [ ! -f "${PLUGINS_DIR}/EssentialsX.jar" ]; then
-        info "  [10/13] EssentialsX (基本コマンド)..."
+        info "  [10/12] EssentialsX (基本コマンド)..."
         download_github_latest \
             "EssentialsX/Essentials" \
             "${PLUGINS_DIR}/EssentialsX.jar" \
             "EssentialsX-"
     else
-        info "  [10/13] EssentialsX     → スキップ（既存）"
+        info "  [10/12] EssentialsX     → スキップ（既存）"
     fi
 
-    # ⑪ EssentialsXChat — チャットフォーマット（EssentialsX 同バージョン必須）
-    # JapanizeDiscordBridge がプレフィックスを担当するため競合しないよう
-    # EssentialsXChat の format は無効化して Vault ブリッジのみ利用する
-    if [ ! -f "${PLUGINS_DIR}/EssentialsXChat.jar" ]; then
-        info "  [11/13] EssentialsXChat (チャットブリッジ)..."
-        download_github_latest \
-            "EssentialsX/Essentials" \
-            "${PLUGINS_DIR}/EssentialsXChat.jar" \
-            "EssentialsXChat-"
-    else
-        info "  [11/13] EssentialsXChat → スキップ（既存）"
-    fi
-
-    # ⑫ Multiverse-Inventories — ワールド間インベントリ分離
+    # ⑪ Multiverse-Inventories — ワールド間インベントリ分離 — ワールド間インベントリ分離
     # season2026 ↔ campus 等でアイテム持ち込みを防ぐため必須
     if [ ! -f "${PLUGINS_DIR}/Multiverse-Inventories.jar" ]; then
-        info "  [12/13] Multiverse-Inventories (インベントリ分離)..."
+        info "  [11/12] Multiverse-Inventories (インベントリ分離)..."
         download_modrinth_latest "multiverse-inventories" "${PLUGINS_DIR}/Multiverse-Inventories.jar" "bukkit"
     else
-        info "  [12/13] Multiverse-Inventories → スキップ（既存）"
+        info "  [11/12] Multiverse-Inventories → スキップ（既存）"
     fi
 
     # ⑬ Multiverse-NetherPortals — ネザー・エンドポータルのワールド振り分け
     # Multiverse-Core 5.x はポータルルーティングを行わないため別途必要
     # 命名規則（worldname_nether / worldname_the_end）に従ったワールドを自動リンク
     if [ ! -f "${PLUGINS_DIR}/Multiverse-NetherPortals.jar" ]; then
-        info "  [13/13] Multiverse-NetherPortals (ポータルルーティング)..."
+        info "  [12/12] Multiverse-NetherPortals (ポータルルーティング)..."
         download_modrinth_latest "multiverse-netherportals" "${PLUGINS_DIR}/Multiverse-NetherPortals.jar"
     else
-        info "  [13/13] Multiverse-NetherPortals → スキップ（既存）"
+        info "  [12/12] Multiverse-NetherPortals → スキップ（既存）"
     fi
 
     success "全プラグイン準備完了"
