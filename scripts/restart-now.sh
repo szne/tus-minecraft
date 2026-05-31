@@ -160,6 +160,14 @@ else
     log "WARNING: RCON_PASSWORD 未設定のためセットアップをスキップ"
 fi
 
+# ── LuckPerms パーミッション設定（docker attach 経由）─────────
+SETUP_SCRIPT="${HOME}/Container/tus-minecraft/scripts/setup-permissions.sh"
+if [ -f "${SETUP_SCRIPT}" ]; then
+    log "LuckPerms パーミッション設定中..."
+    bash "${SETUP_SCRIPT}" && log "✓ LuckPerms パーミッション設定完了" \
+        || log "WARNING: パーミッション設定でエラー（手動で setup-permissions.sh を実行）"
+fi
+
 log "========================================"
 log " 即時再起動シーケンス終了"
 log "========================================"
