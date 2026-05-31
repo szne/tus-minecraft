@@ -108,6 +108,37 @@ if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
     rcon_cmd "save-all" || true
     sleep 3
 fi
+# ── pending インベントリ復元（サーバー停止後・起動前）────────
+PENDING="${HOME}/Container/tus-minecraft/pending-inventory-restore.json"
+if [ -f "${PENDING}" ]; then
+    log "pending インベントリ復元を適用中..."
+    python3 - <<PYEOF
+import json, os, shutil
+
+pending = json.load(open("${PENDING}"))
+base = "${HOME}/Container/tus-minecraft/data/plugins/Multiverse-Inventories"
+
+for entry in pending:
+    player = entry["player"]
+    restore = entry["data"]
+    for subdir in ["groups/season2026-group", "worlds/season2026"]:
+        path = os.path.join(base, subdir, player + ".json")
+        if not os.path.exists(path):
+            continue
+        with open(path) as f:
+            data = json.load(f)
+        data.setdefault("SURVIVAL", {}).update(restore)
+        shutil.copy2(path, path + ".bak")
+        with open(path, "w") as f:
+            json.dump(data, f)
+        print(f"  ✓ {player} ({subdir})")
+
+os.remove("${PENDING}")
+print("pending 復元完了")
+PYEOF
+    log "✓ pending インベントリ復元完了"
+fi
+
 # docker compose up -d --force-recreate を使うことで
 # .env の変更（DEFAULT_WORLD 等）を毎回確実に反映する
 COMPOSE_DIR="${HOME}/Container/tus-minecraft"
