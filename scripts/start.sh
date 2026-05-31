@@ -214,11 +214,30 @@ download_plugins() {
         info "  [11/12] Multiverse-Inventories → スキップ（既存）"
     fi
 
-    # ⑫ MyWorlds — ネザー・エンドポータルのワールド振り分け
+    # ⑫ BKCommonLib — MyWorlds の必須依存ライブラリ
+    # bergerhealer CI からビルド済みアーティファクトを取得
+    if [ ! -f "${PLUGINS_DIR}/BKCommonLib.jar" ]; then
+        info "  [12/13] BKCommonLib (MyWorlds依存)..."
+        local bk_api="https://ci.mg-dev.eu/job/BKCommonLib/lastSuccessfulBuild/api/json"
+        local bk_artifact
+        bk_artifact=$(curl -fsSL "${bk_api}" \
+            | jq -r '.artifacts[0].relativePath')
+        if [ -z "${bk_artifact}" ] || [ "${bk_artifact}" = "null" ]; then
+            error "BKCommonLib の CI URL を取得できませんでした"
+        else
+            curl -fSL --progress-bar \
+                -o "${PLUGINS_DIR}/BKCommonLib.jar" \
+                "https://ci.mg-dev.eu/job/BKCommonLib/lastSuccessfulBuild/artifact/${bk_artifact}"
+        fi
+    else
+        info "  [12/13] BKCommonLib     → スキップ（既存）"
+    fi
+
+    # ⑬ MyWorlds — ネザー・エンドポータルのワールド振り分け
     # Multiverse-Core 5.x はポータルルーティングを行わないため別途必要
     # bergerhealer CI からビルド済みアーティファクトを取得
     if [ ! -f "${PLUGINS_DIR}/MyWorlds.jar" ]; then
-        info "  [12/12] MyWorlds (ポータルルーティング)..."
+        info "  [13/13] MyWorlds (ポータルルーティング)..."
         local mw_api="https://ci.mg-dev.eu/job/MyWorlds/lastSuccessfulBuild/api/json"
         local mw_artifact
         mw_artifact=$(curl -fsSL "${mw_api}" \
@@ -231,7 +250,7 @@ download_plugins() {
                 "https://ci.mg-dev.eu/job/MyWorlds/lastSuccessfulBuild/artifact/${mw_artifact}"
         fi
     else
-        info "  [12/12] MyWorlds        → スキップ（既存）"
+        info "  [13/13] MyWorlds        → スキップ（既存）"
     fi
 
     success "全プラグイン準備完了"

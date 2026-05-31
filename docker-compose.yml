@@ -23,6 +23,7 @@ services:
     ports:
       - "${JAVA_PORT:-25565}:25565/tcp"    # Java Edition
       - "${BEDROCK_PORT:-19132}:19132/udp" # Bedrock (GeyserMC)
+      - "127.0.0.1:25575:25575/tcp"        # RCON (ローカルのみ)
 
     volumes:
       # サーバー全データをホストに永続化（ワールド・プラグイン設定・ログ）

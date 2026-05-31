@@ -158,8 +158,17 @@ if [ -n "${RCON_PASS}" ] && [ "${RCON_PASS}" != "changeme" ]; then
             cp -r "${DATA_DIR}/test" "${DATA_DIR}/2026end"
             rm -f "${DATA_DIR}/2026end/uid.dat"
             sleep 2
+            # test 三姉妹を Multiverse からアンロード・削除
+            rcon_cmd "mv unload test_the_end"
+            sleep 3
+            rcon_cmd "mv unload test_nether"
+            sleep 3
             rcon_cmd "mv unload test"
             sleep 8
+            rcon_cmd "mv remove test_the_end"
+            sleep 2
+            rcon_cmd "mv remove test_nether"
+            sleep 2
             rcon_cmd "mv remove test"
             sleep 2
             rcon_cmd "mv import 2026end normal"
