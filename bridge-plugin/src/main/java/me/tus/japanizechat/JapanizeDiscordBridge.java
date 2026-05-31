@@ -228,7 +228,7 @@ public final class JapanizeDiscordBridge extends JavaPlugin implements Listener 
         if (vaultChat == null) return Component.empty();
         String prefix = vaultChat.getPlayerPrefix(player);
         if (prefix == null || prefix.isEmpty()) return Component.empty();
-        return LegacyComponentSerializer.legacySection().deserialize(prefix);
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(prefix);
     }
 
     /**
